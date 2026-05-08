@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
@@ -13,6 +14,9 @@ const errorHandler = require('./middlewares/errorHandler.middleware');
 const routes = require('./routes');
 
 const app = express();
+
+// Serve uploaded files statically
+app.use('/canaco/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Security Headers
 app.use(helmet({
@@ -47,11 +51,21 @@ app.use(hpp());
 // Cookie parser needed for csurf
 app.use(cookieParser());
 
-// CSRF Protection (Ignorado en internal routes y webhooks)
+// CSRF Protection (Ignorado en rutas que usan JWT Bearer token o webhooks)
 const csrfProtection = csurf({ cookie: { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'strict' } });
 app.use((req, res, next) => {
   const url = req.originalUrl;
-  if (url.startsWith('/canaco/internal') || url.startsWith('/canaco/webhooks') || url.startsWith('/canaco/auth/iniciar-sesion') || url.startsWith('/canaco/auth/registrar')) {
+  // Las rutas protegidas con JWT Bearer no necesitan CSRF (el header Authorization actúa como protección)
+  const sinCsrf = [
+    '/canaco/internal',
+    '/canaco/webhooks',
+    '/canaco/auth/iniciar-sesion',
+    '/canaco/auth/registrar',
+    '/canaco/contacts',
+    '/canaco/groups',
+    '/canaco/messages',
+  ];
+  if (sinCsrf.some(ruta => url.startsWith(ruta))) {
     return next();
   }
   return csrfProtection(req, res, next);

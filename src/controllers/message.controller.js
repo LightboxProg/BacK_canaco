@@ -2,6 +2,7 @@ const Mensaje = require('../models/Message');
 const BulkJob = require('../models/BulkJob');
 const n8nService = require('../services/n8n.service');
 const bulkService = require('../services/bulk.service');
+const mediaService = require('../services/media.service');
 const Contacto = require('../models/Contact');
 
 /**
@@ -22,7 +23,8 @@ exports.enviarIndividual = async (req, res, next) => {
       contenido,
       tipo: tipo || 'texto',
       direccion: 'saliente',
-      estado: 'pendiente'
+      estado: 'pendiente',
+      remitenteUsuario: req.user ? req.user._id : undefined
     });
 
     // 3. Enviar el payload a través de n8n hacia Meta
@@ -66,3 +68,79 @@ exports.enviarMasivo = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Controlador para recibir un mensaje entrante de n8n/Meta.
+ * Guarda el mensaje y asocia/crea el contacto si no existe.
+ */
+exports.recibirMensaje = async (req, res, next) => {
+  try {
+    const { telefono, contenido, tipo, metaMensajeId, nombre, region, mimeType, mediaUrl } = req.body;
+
+    if (!telefono) {
+      return res.status(400).json({ estado: 'error', mensaje: 'Teléfono es obligatorio' });
+    }
+
+    // 1. Buscar o crear el contacto
+    let contacto = await Contacto.findOne({ telefono });
+    if (!contacto) {
+      contacto = await Contacto.create({ 
+        telefono, 
+        nombre: nombre || 'Desconocido',
+        region: region || ''
+      });
+    } else if (region && !contacto.region) {
+      contacto.region = region;
+      await contacto.save();
+    }
+
+    // 2. Si es una imagen u otro archivo con URL, descargarlo
+    let archivoUrlLocal = null;
+    let textoContenido = contenido || '';
+
+    if (tipo === 'image' && mediaUrl) {
+      try {
+        archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'image/jpeg');
+        if (!textoContenido) textoContenido = '📷 Imagen recibida';
+      } catch (err) {
+        console.error('Error descargando imagen de Meta:', err);
+        textoContenido = '⚠️ [Error al descargar la imagen]';
+      }
+    }
+
+    // 3. Guardar el mensaje entrante
+    const mensaje = await Mensaje.create({
+      metaMensajeId,
+      contacto: contacto._id,
+      contenido: textoContenido,
+      tipo: tipo || 'texto',
+      direccion: 'entrante',
+      estado: 'entregado',
+      archivoUrl: archivoUrlLocal,
+      mimeType: mimeType
+    });
+
+    res.status(201).json({ estado: 'exito', datos: mensaje });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Controlador para obtener la conversación con un contacto.
+ */
+exports.obtenerConversacion = async (req, res, next) => {
+  try {
+    const { contactoId } = req.params;
+
+    const mensajes = await Mensaje.find({ contacto: contactoId })
+      .populate('contacto', 'nombre telefono region')
+      .populate('remitenteUsuario', 'correo rol')
+      .sort({ createdAt: 1 }); // Orden cronológico (antiguos primero)
+
+    res.status(200).json({ estado: 'exito', datos: mensajes });
+  } catch (error) {
+    next(error);
+  }
+};
+

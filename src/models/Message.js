@@ -9,7 +9,10 @@ const esquemaMensaje = new mongoose.Schema({
   metaMensajeId: { type: String },
   
   // Referencia al Contacto asociado a este mensaje
-  contacto: { type: mongoose.Schema.ObjectId, ref: 'Contact', required: true },
+  contacto: { type: mongoose.Schema.ObjectId, ref: 'Contacto', required: true },
+
+  // Usuario del equipo que envió el mensaje (solo para mensajes salientes)
+  remitenteUsuario: { type: mongoose.Schema.ObjectId, ref: 'Usuario' },
   
   // Contenido de texto del mensaje
   contenido: { type: String, required: true },
@@ -20,8 +23,14 @@ const esquemaMensaje = new mongoose.Schema({
   // Estado actual de entrega del mensaje
   estado: { type: String, enum: ['pendiente', 'enviado', 'entregado', 'leido', 'fallido'], default: 'pendiente' },
   
-  // Tipo de mensaje (texto, imagen, etc.)
-  tipo: { type: String, default: 'texto' }
+  // Tipo de mensaje (texto, imagen, document, audio, etc.)
+  tipo: { type: String, default: 'texto' },
+
+  // Si es un archivo (imagen/audio), aquí se guarda la ruta local
+  archivoUrl: { type: String },
+
+  // MIME type original del archivo (ej. image/jpeg)
+  mimeType: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Mensaje', esquemaMensaje);

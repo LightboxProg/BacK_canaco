@@ -4,7 +4,7 @@ const entorno = require('../config/environment');
 const Usuario = require('../models/User');
 const { enviarCorreoConfirmacion } = require('../services/email.service');
 
-const firmarToken = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '15m' });
+const firmarToken = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '24h' });
 const firmarTokenRefresco = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '7d' });
 
 /**
@@ -85,7 +85,7 @@ exports.iniciarSesion = async (req, res, next) => {
     const token = firmarToken(usuario._id);
     const tokenRefresco = firmarTokenRefresco(usuario._id);
 
-    res.cookie('jwt', token, { httpOnly: true, secure: entorno.NODE_ENV === 'production', sameSite: 'strict', maxAge: 15 * 60 * 1000 });
+    res.cookie('jwt', token, { httpOnly: true, secure: entorno.NODE_ENV === 'production', sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });
     usuario.contrasena = undefined;
     
     res.status(200).json({ estado: 'exito', datos: { token, tokenRefresco, usuario } });

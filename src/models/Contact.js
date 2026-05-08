@@ -12,7 +12,10 @@ const esquemaContacto = new mongoose.Schema({
   nombre: { type: String },
   
   // Referencia al usuario propietario/creador de este contacto
-  propietario: { type: mongoose.Schema.ObjectId, ref: 'User' }
+  propietario: { type: mongoose.Schema.ObjectId, ref: 'Usuario' },
+
+  // Región o lada del contacto
+  region: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Contacto', esquemaContacto);
