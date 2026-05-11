@@ -9,10 +9,10 @@ const esquemaMensaje = new mongoose.Schema({
   metaMensajeId: { type: String },
   
   // Referencia al Contacto asociado a este mensaje
-  contacto: { type: mongoose.Schema.ObjectId, ref: 'Contacto', required: true },
+  contacto: { type: mongoose.Schema.Types.ObjectId, ref: 'Contacto', required: true },
 
   // Usuario del equipo que envió el mensaje (solo para mensajes salientes)
-  remitenteUsuario: { type: mongoose.Schema.ObjectId, ref: 'Usuario' },
+  remitenteUsuario: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
   
   // Contenido de texto del mensaje
   contenido: { type: String, required: true },
@@ -26,11 +26,14 @@ const esquemaMensaje = new mongoose.Schema({
   // Tipo de mensaje (texto, imagen, document, audio, etc.)
   tipo: { type: String, default: 'texto' },
 
-  // Si es un archivo (imagen/audio), aquí se guarda la ruta local
+  // Si es un archivo, aquí se guarda la URL de Amazon S3
   archivoUrl: { type: String },
 
   // MIME type original del archivo (ej. image/jpeg)
-  mimeType: { type: String }
+  mimeType: { type: String },
+
+  // Nombre original del archivo (opcional, útil para documentos)
+  nombreArchivo: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Mensaje', esquemaMensaje);

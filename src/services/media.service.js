@@ -19,7 +19,24 @@ const s3Client = new S3Client({
  * @param {string} mimeType - El mime type para saber qué extensión darle (ej. image/jpeg)
  * @returns {Promise<string>} - Retorna la URL pública de S3
  */
-exports.descargarMediaDeMeta = (url, mimeType) => {
+exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
+  let downloadUrl = mediaUrlOrId;
+
+  // Si no es una URL completa (es un ID de Meta), obtenemos la URL real primero
+  if (!mediaUrlOrId.startsWith('http')) {
+    const metaApiUrl = `https://graph.facebook.com/v19.0/${mediaUrlOrId}`;
+    try {
+      const response = await fetch(metaApiUrl, {
+        headers: { 'Authorization': `Bearer ${entorno.META_TOKEN}` }
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+      downloadUrl = data.url;
+    } catch (err) {
+      throw new Error(`Fallo al obtener la URL del media ID ${mediaUrlOrId}: ${err.message}`);
+    }
+  }
+
   return new Promise((resolve, reject) => {
     // Generar un nombre aleatorio para el archivo en S3
     const ext = mimeType.split('/')[1] || 'bin';
@@ -32,7 +49,7 @@ exports.descargarMediaDeMeta = (url, mimeType) => {
     };
 
     // Hacer la petición GET a Meta
-    https.get(url, options, (res) => {
+    https.get(downloadUrl, options, (res) => {
       if (res.statusCode !== 200) {
         reject(new Error(`Fallo al descargar archivo de Meta. Status: ${res.statusCode}`));
         return;

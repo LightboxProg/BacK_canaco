@@ -75,7 +75,7 @@ exports.enviarMasivo = async (req, res, next) => {
  */
 exports.recibirMensaje = async (req, res, next) => {
   try {
-    const { telefono, contenido, tipo, metaMensajeId, nombre, region, mimeType, mediaUrl } = req.body;
+    const { telefono, contenido, tipo, metaMensajeId, nombre, region, mimeType, mediaUrl, nombreArchivo } = req.body;
 
     if (!telefono) {
       return res.status(400).json({ estado: 'error', mensaje: 'Teléfono es obligatorio' });
@@ -98,13 +98,26 @@ exports.recibirMensaje = async (req, res, next) => {
     let archivoUrlLocal = null;
     let textoContenido = contenido || '';
 
-    if (tipo === 'image' && mediaUrl) {
+    const tiposMultimedia = ['image', 'audio', 'video', 'document', 'sticker', 'voice'];
+    if (tiposMultimedia.includes(tipo) && mediaUrl) {
       try {
-        archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'image/jpeg');
-        if (!textoContenido) textoContenido = '📷 Imagen recibida';
+        // En S3 o local, se necesita saber qué mimeType y url
+        archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'application/octet-stream');
+        
+        if (!textoContenido) {
+          const iconos = { 
+            'image': '📷 Imagen', 
+            'audio': '🎵 Audio', 
+            'video': '🎥 Video', 
+            'document': '📄 Documento', 
+            'sticker': '✨ Sticker', 
+            'voice': '🎤 Nota de voz' 
+          };
+          textoContenido = `${iconos[tipo] || '📎 Archivo'} recibido`;
+        }
       } catch (err) {
-        console.error('Error descargando imagen de Meta:', err);
-        textoContenido = '⚠️ [Error al descargar la imagen]';
+        console.error(`Error descargando ${tipo} de Meta:`, err);
+        textoContenido = `⚠️ [Error al descargar ${tipo}]`;
       }
     }
 
@@ -117,7 +130,8 @@ exports.recibirMensaje = async (req, res, next) => {
       direccion: 'entrante',
       estado: 'entregado',
       archivoUrl: archivoUrlLocal,
-      mimeType: mimeType
+      mimeType: mimeType,
+      nombreArchivo: nombreArchivo || (tipo === 'document' ? 'Documento' : undefined)
     });
 
     res.status(201).json({ estado: 'exito', datos: mensaje });
@@ -132,14 +146,17 @@ exports.recibirMensaje = async (req, res, next) => {
 exports.obtenerConversacion = async (req, res, next) => {
   try {
     const { contactoId } = req.params;
+    console.log(`[Backend] Petición GET /conversacion/${contactoId}`);
 
     const mensajes = await Mensaje.find({ contacto: contactoId })
       .populate('contacto', 'nombre telefono region')
-      .populate('remitenteUsuario', 'correo rol')
+      .populate('remitenteUsuario', 'correo rol nombre')
       .sort({ createdAt: 1 }); // Orden cronológico (antiguos primero)
 
+    console.log(`[Backend] Se encontraron ${mensajes.length} mensajes para el contacto ${contactoId}. Enviando respuesta 200.`);
     res.status(200).json({ estado: 'exito', datos: mensajes });
   } catch (error) {
+    console.error(`[Backend] Error en obtenerConversacion:`, error);
     next(error);
   }
 };

@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
  * Administra el acceso al panel.
  */
 const esquemaUsuario = new mongoose.Schema({
+  nombre: { type: String, default: 'Agente' },
   correo: { type: String, required: true, unique: true, lowercase: true },
   contrasena: { type: String, required: true, minlength: 8, select: false },
   rol: { type: String, enum: ['admin', 'agente'], default: 'agente' },
