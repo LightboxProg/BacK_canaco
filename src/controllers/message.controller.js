@@ -11,28 +11,40 @@ const Contacto = require('../models/Contact');
  */
 exports.enviarIndividual = async (req, res, next) => {
   try {
-    const { contactoId, contenido, tipo } = req.body;
+    const { contactoId, contenido, tipo, base64Media, mimeType, fileName } = req.body;
     
     // 1. Verificar si el contacto existe
     const contacto = await Contacto.findById(contactoId);
     if (!contacto) return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
 
-    // 2. Guardar el mensaje saliente en la BD como 'pendiente'
+    let archivoUrl = null;
+
+    // 2. Si hay un archivo adjunto, subirlo a S3 primero
+    if (base64Media && (tipo === 'image' || tipo === 'document' || tipo === 'video' || tipo === 'audio')) {
+      archivoUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
+    }
+
+    // 3. Guardar el mensaje saliente en la BD como 'pendiente'
     const mensaje = await Mensaje.create({
       contacto: contactoId,
       contenido,
       tipo: tipo || 'texto',
       direccion: 'saliente',
       estado: 'pendiente',
+      archivoUrl,
+      mimeType,
+      nombreArchivo: fileName,
       remitenteUsuario: req.user ? req.user._id : undefined
     });
 
-    // 3. Enviar el payload a través de n8n hacia Meta
+    // 4. Enviar el payload a través de n8n hacia Meta
     await n8nService.enviarMensajeIndividual({
       telefono: contacto.telefono,
       contenido,
       tipo: tipo || 'texto',
-      mensajeId: mensaje._id
+      mensajeId: mensaje._id,
+      mediaUrl: archivoUrl,
+      fileName
     });
 
     res.status(201).json({ estado: 'exito', datos: mensaje });
@@ -94,17 +106,24 @@ exports.recibirMensaje = async (req, res, next) => {
       await contacto.save();
     }
 
-    // 2. Si es una imagen u otro archivo con URL, descargarlo
+    // 2. Si es una imagen u otro archivo con URL o Base64, procesarlo
     let archivoUrlLocal = null;
     let textoContenido = contenido || '';
 
     const tiposMultimedia = ['image', 'audio', 'video', 'document', 'sticker', 'voice'];
-    if (tiposMultimedia.includes(tipo) && mediaUrl) {
+    const { base64Media } = req.body; // n8n puede enviar el archivo en base64
+
+    if (tiposMultimedia.includes(tipo)) {
       try {
-        // En S3 o local, se necesita saber qué mimeType y url
-        archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'application/octet-stream');
+        if (base64Media) {
+          // Si n8n ya descargó el archivo y lo envió como base64
+          archivoUrlLocal = await mediaService.guardarMediaBase64(base64Media, mimeType || 'application/octet-stream');
+        } else if (mediaUrl) {
+          // Si n8n solo mandó la URL, descargamos de Meta
+          archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'application/octet-stream');
+        }
         
-        if (!textoContenido) {
+        if (!textoContenido && archivoUrlLocal) {
           const iconos = { 
             'image': '📷 Imagen', 
             'audio': '🎵 Audio', 
@@ -116,8 +135,8 @@ exports.recibirMensaje = async (req, res, next) => {
           textoContenido = `${iconos[tipo] || '📎 Archivo'} recibido`;
         }
       } catch (err) {
-        console.error(`Error descargando ${tipo} de Meta:`, err);
-        textoContenido = `⚠️ [Error al descargar ${tipo}]`;
+        console.error(`Error procesando multimedia ${tipo}:`, err);
+        textoContenido = ` [Error al procesar/descargar ${tipo}]`;
       }
     }
 

@@ -1,0 +1,87 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "respuesta-canaco",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                -1104,
+                784
+            ],
+            "id": "b424dcc4-c01c-4295-80ee-329e75ff1d6f",
+            "name": "Webhook CRM Reply",
+            "webhookId": "5cc0f696-7275-4c10-bfba-e21ad0fc9249"
+        },
+        {
+            "parameters": {
+                "jsCode": "const body = $input.item.json.body;\nconst tipo = body.tipo || 'text';\nconst mensaje = body.mensaje || '';\nconst telefono = body.telefono;\nconst mediaUrl = body.mediaUrl;\nconst fileName = body.fileName || 'archivo';\n\nlet payload = {\n  messaging_product: 'whatsapp',\n  to: telefono,\n  type: tipo\n};\n\nif (tipo === 'text') {\n  payload.text = { body: mensaje };\n} else if (tipo === 'image') {\n  payload.image = { link: mediaUrl };\n  if (mensaje) payload.image.caption = mensaje;\n} else if (tipo === 'audio') {\n  payload.audio = { link: mediaUrl };\n} else if (tipo === 'video') {\n  payload.video = { link: mediaUrl };\n  if (mensaje) payload.video.caption = mensaje;\n} else if (tipo === 'document') {\n  payload.document = { link: mediaUrl, filename: fileName };\n  if (mensaje) payload.document.caption = mensaje;\n}\n\n$input.item.json.fbPayload = payload;\nreturn $input.item;"
+            },
+            "id": "330a1f89-167b-4e2c-bbc4-39fd2a410cdc",
+            "name": "Prepare Payload",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -880,
+                784
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://graph.facebook.com/v20.0/164144560120336/messages",
+                "authentication": "predefinedCredentialType",
+                "nodeCredentialType": "whatsAppApi",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ $json.fbPayload }}",
+                "options": {}
+            },
+            "id": "08c67ed8-2fb9-44c9-9602-04862e036235",
+            "name": "Send to WhatsApp",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                -656,
+                784
+            ],
+            "credentials": {
+                "whatsAppApi": {
+                    "id": "zCBMXV3tB67SCEM4",
+                    "name": "Prueba"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook CRM Reply": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Payload",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Payload": {
+            "main": [
+                [
+                    {
+                        "node": "Send to WhatsApp",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "instanceId": "3da69176dde7ed764e713a7f48c340ee98bdd619d3c5a68a96333eb1ae50b95c"
+    }
+}

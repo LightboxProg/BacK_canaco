@@ -83,3 +83,42 @@ exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
     });
   });
 };
+
+/**
+ * Guarda un archivo en formato Base64 directamente a AWS S3
+ * @param {string} base64Data - Datos del archivo en formato base64
+ * @param {string} mimeType - El mime type para saber qué extensión darle (ej. image/jpeg)
+ * @returns {Promise<string>} - Retorna la URL pública de S3
+ */
+exports.guardarMediaBase64 = async (base64Data, mimeType) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const buffer = Buffer.from(base64Data, 'base64');
+      const ext = mimeType.split('/')[1] || 'bin';
+      const filename = `whatsapp_media/${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
+
+      const s3Upload = new Upload({
+        client: s3Client,
+        params: {
+          Bucket: entorno.AWS_BUCKET_NAME || 's3-canaco',
+          Key: filename,
+          Body: buffer,
+          ContentType: mimeType,
+          // ACL: 'public-read' // Descomentar si el bucket lo permite/requiere
+        }
+      });
+
+      s3Upload.done()
+        .then(data => {
+          logger.info(`Archivo base64 subido exitosamente a S3: ${data.Location}`);
+          resolve(data.Location || `https://${entorno.AWS_BUCKET_NAME}.s3.${entorno.AWS_REGION}.amazonaws.com/${filename}`);
+        })
+        .catch(err => {
+          logger.error(`Error subiendo base64 a S3: ${err.message}`);
+          reject(err);
+        });
+    } catch (err) {
+      reject(err);
+    }
+  });
+};

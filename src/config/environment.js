@@ -15,7 +15,11 @@ const envSchema = z.object({
   SMTP_PORT: z.string().optional().default('587'),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  FRONTEND_URL: z.string().default('http://localhost:4200')
+  FRONTEND_URL: z.string().default('http://localhost:4200'),
+  AWS_REGION: z.string().optional().default('us-east-2'),
+  AWS_BUCKET_NAME: z.string().optional().default('s3-canaco'),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional()
 });
 
 const parsed = envSchema.safeParse(process.env);
