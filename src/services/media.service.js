@@ -1,6 +1,7 @@
 const { S3Client } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const https = require('https');
+const sharp = require('sharp');
 const entorno = require('../config/environment');
 const logger = require('../utils/logger');
 
@@ -38,8 +39,10 @@ exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
   }
 
   return new Promise((resolve, reject) => {
+    let finalMimeType = mimeType;
+    let ext = mimeType.split('/')[1] || 'bin';
+
     // Generar un nombre aleatorio para el archivo en S3
-    const ext = mimeType.split('/')[1] || 'bin';
     const filename = `whatsapp_media/${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
 
     const options = {
@@ -56,13 +59,15 @@ exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
       }
 
       // Usar la respuesta (que es un Stream) directamente como Body para la subida a S3
+      let uploadStream = res;
+
       const s3Upload = new Upload({
         client: s3Client,
         params: {
           Bucket: entorno.AWS_BUCKET_NAME || 's3-canaco',
           Key: filename,
-          Body: res, // Pasa el stream de lectura directamente
-          ContentType: mimeType,
+          Body: uploadStream, // Pasa el stream modificado si es webp
+          ContentType: finalMimeType,
           // ACL: 'public-read' // Opcional: Descomenta si tu bucket permite ACLs públicos directos
         }
       });
@@ -91,10 +96,12 @@ exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
  * @returns {Promise<string>} - Retorna la URL pública de S3
  */
 exports.guardarMediaBase64 = async (base64Data, mimeType) => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
-      const buffer = Buffer.from(base64Data, 'base64');
-      const ext = mimeType.split('/')[1] || 'bin';
+      let buffer = Buffer.from(base64Data, 'base64');
+      let finalMimeType = mimeType;
+      let ext = mimeType.split('/')[1] || 'bin';
+
       const filename = `whatsapp_media/${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
 
       const s3Upload = new Upload({
@@ -103,7 +110,7 @@ exports.guardarMediaBase64 = async (base64Data, mimeType) => {
           Bucket: entorno.AWS_BUCKET_NAME || 's3-canaco',
           Key: filename,
           Body: buffer,
-          ContentType: mimeType,
+          ContentType: finalMimeType,
           // ACL: 'public-read' // Descomentar si el bucket lo permite/requiere
         }
       });

@@ -19,7 +19,17 @@ exports.obtenerGrupos = async (req, res, next) => {
  */
 exports.crearGrupo = async (req, res, next) => {
   try {
-    const grupo = await Grupo.create({ ...req.body, propietario: req.user._id });
+    const { contactos, ...datosGrupo } = req.body;
+    const grupo = await Grupo.create({ ...datosGrupo, propietario: req.user._id });
+
+    if (contactos && Array.isArray(contactos) && contactos.length > 0) {
+      const relaciones = contactos.map(contactoId => ({
+        grupo: grupo._id,
+        contacto: contactoId
+      }));
+      await ContactoGrupo.insertMany(relaciones);
+    }
+
     res.status(201).json({ estado: 'exito', datos: grupo });
   } catch (error) {
     next(error);

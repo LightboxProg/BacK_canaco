@@ -4,6 +4,7 @@ const contactRoutes = require('./contact.routes');
 const messageRoutes = require('./message.routes');
 const groupRoutes = require('./group.routes');
 const internalRoutes = require('./internal.routes');
+const templateRoutes = require('./template.routes');
 
 const router = express.Router();
 
@@ -12,5 +13,6 @@ router.use('/contacts', contactRoutes);
 router.use('/groups', groupRoutes);
 router.use('/messages', messageRoutes);
 router.use('/internal', internalRoutes); // n8n webhook routes
+router.use('/templates', templateRoutes);
 
 module.exports = router;

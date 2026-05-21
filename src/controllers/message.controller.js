@@ -59,19 +59,21 @@ exports.enviarIndividual = async (req, res, next) => {
  */
 exports.enviarMasivo = async (req, res, next) => {
   try {
-    const { gruposIds, contactosIds, contenido, nombrePlantilla } = req.body;
+    const { gruposIds, contactosIds, contenido, nombrePlantilla, idiomaPlantilla, componentesPlantilla } = req.body;
 
     // 1. Crear el trabajo en la BD (BulkJob)
     const trabajoMasivo = await BulkJob.create({
-      createdBy: req.user._id,
-      content: contenido,
-      templateName: nombrePlantilla || 'plantilla_por_defecto',
-      contactIds: contactosIds,
-      groupIds: gruposIds,
-      status: 'pending'
+      creadoPor: req.user._id,
+      contenido,
+      nombrePlantilla: nombrePlantilla || 'plantilla_por_defecto',
+      idiomaPlantilla: idiomaPlantilla || 'es_MX',
+      componentesPlantilla: componentesPlantilla || null,
+      contactosIds: contactosIds,
+      gruposIds: gruposIds,
+      estado: 'pendiente'
     });
 
-    // 2. Procesar el trabajo masivo de manera asíncrona
+    // 2. Procesar el trabajo masivo de manera asincrona
     bulkService.procesarTrabajoMasivo(trabajoMasivo._id);
 
     // Responder inmediatamente sin esperar a n8n
@@ -179,4 +181,21 @@ exports.obtenerConversacion = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Sube un archivo en formato Base64 a S3.
+ */
+exports.subirMedia = async (req, res, next) => {
+  try {
+    const { base64Media, mimeType } = req.body;
+    if (!base64Media || !mimeType) {
+      return res.status(400).json({ estado: 'error', mensaje: 'base64Media y mimeType son requeridos' });
+    }
+    const fileUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
+    res.status(200).json({ estado: 'exito', datos: { url: fileUrl } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
