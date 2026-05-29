@@ -6,6 +6,7 @@ const envSchema = z.object({
   MONGODB_URI: z.string().url(),
   WEBHOOK_N8N: z.string().url(),
   WEBHOOK_MASIVOS_N8N: z.string().url(),
+  N8N_MANDAR_MENSAJE: z.string().url(),
   WABA_ID: z.string(),
   META_TOKEN: z.string(),
   JWT_SECRET: z.string().min(32).default('change_this_super_secret_key_min_32_chars_fallback'),

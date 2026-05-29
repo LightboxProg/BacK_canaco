@@ -1,5 +1,6 @@
 const Mensaje = require('../models/Message');
 const Contacto = require('../models/Contact');
+const mediaService = require('../services/media.service');
 const { obtenerIO } = require('../config/socket');
 const registrador = require('../utils/logger');
 
@@ -12,24 +13,74 @@ const registrador = require('../utils/logger');
  */
 exports.recibirMensaje = async (req, res, next) => {
   try {
-    const { metaMessageId, contactPhone, contactName, content, type } = req.body;
+    const { metaMessageId, contactPhone, contactName, content, type, mimeType, mediaUrl, fileName, base64Media } = req.body;
+
+    if (!contactPhone) {
+      return res.status(400).json({ estado: 'error', mensaje: 'Teléfono es obligatorio' });
+    }
+
+    const telLimpio = contactPhone.replace(/\D/g, '');
+    let telAlternativo = telLimpio;
+    if (telLimpio.startsWith('521') && telLimpio.length === 13) {
+      telAlternativo = '52' + telLimpio.substring(3);
+    } else if (telLimpio.startsWith('52') && telLimpio.length === 12) {
+      telAlternativo = '521' + telLimpio.substring(2);
+    }
 
     // 1. Buscar si el contacto ya existe por su teléfono
-    let contacto = await Contacto.findOne({ telefono: contactPhone });
+    let contacto = await Contacto.findOne({ telefono: { $in: [telLimpio, telAlternativo] } });
     
     // Si no existe, crearlo
     if (!contacto) {
-      contacto = await Contacto.create({ telefono: contactPhone, nombre: contactName });
+      contacto = await Contacto.create({ 
+        telefono: telLimpio, 
+        nombre: contactName || 'Desconocido',
+        registrado: false
+      });
     }
 
-    // 2. Crear el mensaje en la base de datos
+    // 2. Si es un archivo multimedia o documento, procesarlo
+    let archivoUrlLocal = null;
+    let textoContenido = content || '';
+
+    const tiposMultimedia = ['image', 'audio', 'video', 'document', 'sticker', 'voice'];
+
+    if (tiposMultimedia.includes(type)) {
+      try {
+        if (base64Media) {
+          archivoUrlLocal = await mediaService.guardarMediaBase64(base64Media, mimeType || 'application/octet-stream');
+        } else if (mediaUrl) {
+          archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'application/octet-stream');
+        }
+        
+        if (!textoContenido && archivoUrlLocal) {
+          const iconos = { 
+            'image': '📷 Imagen', 
+            'audio': '🎵 Audio', 
+            'video': '🎥 Video', 
+            'document': '📄 Documento', 
+            'sticker': '✨ Sticker', 
+            'voice': '🎤 Nota de voz' 
+          };
+          textoContenido = `${iconos[type] || '📎 Archivo'} recibido`;
+        }
+      } catch (err) {
+        registrador.error(`Error procesando multimedia ${type} en webhook interno:`, err);
+        textoContenido = ` [Error al procesar/descargar ${type}]`;
+      }
+    }
+
+    // 3. Crear el mensaje en la base de datos
     const nuevoMensaje = await Mensaje.create({
       metaMensajeId: metaMessageId,
       contacto: contacto._id,
-      contenido: content,
+      contenido: textoContenido,
       tipo: type || 'texto',
       direccion: 'entrante',
-      estado: 'entregado'
+      estado: 'entregado',
+      archivoUrl: archivoUrlLocal,
+      mimeType: mimeType,
+      nombreArchivo: fileName || (type === 'document' ? 'Documento' : undefined)
     });
 
     // 3. Notificar al frontend en Angular vía Socket.io de que hay un nuevo mensaje
@@ -60,7 +111,7 @@ exports.actualizarEstado = async (req, res, next) => {
     const mensajeActualizado = await Mensaje.findOneAndUpdate(
       { metaMensajeId: metaMessageId },
       { estado: status },
-      { new: true } // Retorna el documento actualizado
+      { returnDocument: 'after' } // Retorna el documento actualizado
     );
 
     // 2. Si se actualizó correctamente, emitir evento por sockets para reflejar los "palomitas" en frontend

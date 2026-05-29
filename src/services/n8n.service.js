@@ -34,7 +34,7 @@ const conReintento = async (funcion, reintentos = 3) => {
  * @param {Object} datos - Payload (teléfono, contenido, tipo, idMensaje).
  */
 exports.enviarMensajeIndividual = async (datos) => {
-  return conReintento(() => n8nClient.post(entorno.WEBHOOK_N8N, datos));
+  return conReintento(() => n8nClient.post(entorno.N8N_MANDAR_MENSAJE, datos));
 };
 
 /**

@@ -15,7 +15,7 @@ const esquemaMensaje = new mongoose.Schema({
   remitenteUsuario: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
   
   // Contenido de texto del mensaje
-  contenido: { type: String, required: true },
+  contenido: { type: String },
   
   // Dirección del mensaje (entrante o saliente)
   direccion: { type: String, enum: ['entrante', 'saliente'], required: true },

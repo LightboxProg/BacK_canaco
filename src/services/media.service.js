@@ -129,3 +129,29 @@ exports.guardarMediaBase64 = async (base64Data, mimeType) => {
     }
   });
 };
+
+/**
+ * Elimina un archivo de AWS S3 dada su URL completa.
+ * @param {string} url - URL del archivo en S3.
+ */
+exports.eliminarMediaDeS3 = async (url) => {
+  if (!url) return;
+  try {
+    const bucketName = entorno.AWS_BUCKET_NAME || 's3-canaco';
+    const prefijo = 'amazonaws.com/';
+    const index = url.indexOf(prefijo);
+    if (index === -1) return;
+    
+    const key = url.substring(index + prefijo.length);
+    
+    const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    await s3Client.send(new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: key
+    }));
+    
+    logger.info(`Archivo eliminado exitosamente de S3: ${key}`);
+  } catch (err) {
+    logger.error(`Error al eliminar archivo de S3 (${url}):`, err.message);
+  }
+};

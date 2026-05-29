@@ -4,6 +4,7 @@ const n8nService = require('../services/n8n.service');
 const bulkService = require('../services/bulk.service');
 const mediaService = require('../services/media.service');
 const Contacto = require('../models/Contact');
+const { obtenerIO } = require('../config/socket');
 
 /**
  * Controlador para enviar un mensaje individual a un contacto específico.
@@ -20,14 +21,28 @@ exports.enviarIndividual = async (req, res, next) => {
     let archivoUrl = null;
 
     // 2. Si hay un archivo adjunto, subirlo a S3 primero
-    if (base64Media && (tipo === 'image' || tipo === 'document' || tipo === 'video' || tipo === 'audio')) {
+    if (base64Media && tipo !== 'text' && tipo !== 'texto') {
       archivoUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
+    }
+
+    // Calcular texto fallback para el campo contenido de la BD si viene vacío con multimedia
+    let textoContenido = contenido || '';
+    if (!textoContenido && base64Media) {
+      const iconos = { 
+        'image': '📷 Imagen enviada', 
+        'audio': '🎵 Audio enviado', 
+        'video': '🎥 Video enviado', 
+        'document': '📄 Documento enviado', 
+        'sticker': '✨ Sticker enviado', 
+        'voice': '🎤 Nota de voz enviada' 
+      };
+      textoContenido = `${iconos[tipo] || '📎 Archivo'} enviado`;
     }
 
     // 3. Guardar el mensaje saliente en la BD como 'pendiente'
     const mensaje = await Mensaje.create({
       contacto: contactoId,
-      contenido,
+      contenido: textoContenido,
       tipo: tipo || 'texto',
       direccion: 'saliente',
       estado: 'pendiente',
@@ -37,17 +52,53 @@ exports.enviarIndividual = async (req, res, next) => {
       remitenteUsuario: req.user ? req.user._id : undefined
     });
 
-    // 4. Enviar el payload a través de n8n hacia Meta
-    await n8nService.enviarMensajeIndividual({
-      telefono: contacto.telefono,
-      contenido,
-      tipo: tipo || 'texto',
+    try {
+      const mensajePoblado = await Mensaje.findById(mensaje._id)
+        .populate('contacto', 'nombre telefono region')
+        .populate('remitenteUsuario', 'correo rol nombre');
+      obtenerIO().emit('nuevo_mensaje', { mensaje: mensajePoblado });
+    } catch (e) {
+      console.warn('Socket no inicializado o error al emitir mensaje saliente:', e.message);
+    }
+
+    res.status(201).json({ estado: 'exito', datos: mensaje });
+
+    // 4. Enviar el payload a través de n8n hacia Meta de manera asíncrona
+    let telefonoFormateado = contacto.telefono;
+    if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
+      telefonoFormateado = '52' + telefonoFormateado.substring(3);
+    }
+
+    const tipoN8n = (tipo === 'texto' || tipo === 'text' || !tipo) ? 'text' : tipo;
+
+    n8nService.enviarMensajeIndividual({
+      telefono: telefonoFormateado,
+      mensaje: contenido || '',
+      contenido: contenido || '',
+      tipo: tipoN8n,
       mensajeId: mensaje._id,
       mediaUrl: archivoUrl,
       fileName
+    }).then(() => {
+      Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'enviado' }).exec()
+        .then((updatedMsg) => {
+          if (updatedMsg) {
+            try {
+              obtenerIO().emit('estado_mensaje', { mensajeId: updatedMsg._id, estado: 'enviado' });
+            } catch (se) {}
+          }
+        }).catch(() => {});
+    }).catch(async (err) => {
+      console.error(`Error al enviar mensaje a n8n para ${contacto.telefono}:`, err.message);
+      try {
+        const mensajeFallido = await Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'fallido' }, { new: true });
+        if (mensajeFallido) {
+          obtenerIO().emit('estado_mensaje', { mensajeId: mensajeFallido._id, estado: 'fallido' });
+        }
+      } catch (dbErr) {
+        console.error('Error al marcar mensaje como fallido:', dbErr.message);
+      }
     });
-
-    res.status(201).json({ estado: 'exito', datos: mensaje });
   } catch (error) {
     next(error);
   }
@@ -95,13 +146,22 @@ exports.recibirMensaje = async (req, res, next) => {
       return res.status(400).json({ estado: 'error', mensaje: 'Teléfono es obligatorio' });
     }
 
+    const telLimpio = telefono.replace(/\D/g, '');
+    let telAlternativo = telLimpio;
+    if (telLimpio.startsWith('521') && telLimpio.length === 13) {
+      telAlternativo = '52' + telLimpio.substring(3);
+    } else if (telLimpio.startsWith('52') && telLimpio.length === 12) {
+      telAlternativo = '521' + telLimpio.substring(2);
+    }
+
     // 1. Buscar o crear el contacto
-    let contacto = await Contacto.findOne({ telefono });
+    let contacto = await Contacto.findOne({ telefono: { $in: [telLimpio, telAlternativo] } });
     if (!contacto) {
       contacto = await Contacto.create({ 
-        telefono, 
+        telefono: telLimpio, 
         nombre: nombre || 'Desconocido',
-        region: region || ''
+        region: region || '',
+        registrado: false
       });
     } else if (region && !contacto.region) {
       contacto.region = region;
@@ -155,6 +215,14 @@ exports.recibirMensaje = async (req, res, next) => {
       nombreArchivo: nombreArchivo || (tipo === 'document' ? 'Documento' : undefined)
     });
 
+    try {
+      const mensajePoblado = await Mensaje.findById(mensaje._id)
+        .populate('contacto', 'nombre telefono region');
+      obtenerIO().emit('nuevo_mensaje', { mensaje: mensajePoblado });
+    } catch (e) {
+      console.warn('Socket no inicializado o error al emitir mensaje entrante:', e.message);
+    }
+
     res.status(201).json({ estado: 'exito', datos: mensaje });
   } catch (error) {
     next(error);
@@ -193,6 +261,34 @@ exports.subirMedia = async (req, res, next) => {
     }
     const fileUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
     res.status(200).json({ estado: 'exito', datos: { url: fileUrl } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Elimina todos los mensajes de una conversación y borra sus archivos asociados en S3.
+ */
+exports.vaciarConversacion = async (req, res, next) => {
+  try {
+    const { contactoId } = req.params;
+
+    const mensajesConArchivos = await Mensaje.find({ 
+      contacto: contactoId, 
+      archivoUrl: { $ne: null } 
+    });
+
+    for (const msg of mensajesConArchivos) {
+      await mediaService.eliminarMediaDeS3(msg.archivoUrl);
+    }
+
+    await Mensaje.deleteMany({ contacto: contactoId });
+
+    try {
+      obtenerIO().emit('conversacion_vaciada', { contactoId });
+    } catch (e) {}
+
+    res.status(200).json({ estado: 'exito', mensaje: 'Conversación vaciada correctamente' });
   } catch (error) {
     next(error);
   }

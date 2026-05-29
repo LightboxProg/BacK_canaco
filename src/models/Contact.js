@@ -2,20 +2,28 @@ const mongoose = require('mongoose');
 
 /**
  * Esquema de base de datos para los Contactos.
- * Almacena la información de los destinatarios de los mensajes.
+ * Almacena la informacion de los afiliados/destinatarios de CANACO.
  */
 const esquemaContacto = new mongoose.Schema({
-  // Número de teléfono único del contacto (usualmente con código de país)
   telefono: { type: String, required: true, unique: true },
-  
-  // Nombre legible del contacto
   nombre: { type: String },
-  
-  // Referencia al usuario propietario/creador de este contacto
   propietario: { type: mongoose.Schema.ObjectId, ref: 'Usuario' },
+  region: { type: String },
 
-  // Región o lada del contacto
-  region: { type: String }
+  // Campos CANACO
+  empresa: { type: String },
+  codigoPostal: { type: String },
+  numEmpleados: { type: Number },
+  afiliacion: { type: Boolean, default: false },
+  siem: { type: Boolean, default: false },
+  sucursal: { type: String },
+  giro: { type: mongoose.Schema.ObjectId, ref: 'Giro' },
+  vigente: { type: Boolean, default: false },
+  afiliado1: { type: Boolean, default: false },
+  afiliado2: { type: Boolean, default: false },
+  afiliado3: { type: Boolean, default: false },
+  registrado: { type: Boolean, default: true }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Contacto', esquemaContacto);
+

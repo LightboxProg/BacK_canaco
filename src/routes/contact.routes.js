@@ -1,6 +1,6 @@
 const express = require('express');
 const { proteger } = require('../middlewares/auth.middleware');
-const { obtenerContactos, crearContacto } = require('../controllers/contact.controller');
+const { obtenerContactos, crearContacto, obtenerContacto, actualizarContacto } = require('../controllers/contact.controller');
 
 const router = express.Router();
 
@@ -9,5 +9,7 @@ router.use(proteger);
 
 router.get('/', obtenerContactos);
 router.post('/', crearContacto);
+router.get('/:id', obtenerContacto);
+router.put('/:id', actualizarContacto);
 
 module.exports = router;
