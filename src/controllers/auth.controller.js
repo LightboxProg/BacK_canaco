@@ -8,17 +8,18 @@ const firmarToken = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '24h
 const firmarTokenRefresco = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '7d' });
 
 /**
- * Registra un nuevo usuario (Agente).
+ * Registra un nuevo usuario en el sistema.
  */
 exports.registrar = async (req, res, next) => {
   try {
-    const { correo, contrasena } = req.body;
+    const { nombre, correo, contrasena, rol } = req.body;
     const tokenConfirmacion = crypto.randomBytes(32).toString('hex');
     
     const nuevoUsuario = await Usuario.create({ 
+      nombre,
       correo, 
       contrasena, 
-      rol: 'agente',
+      rol: rol || 'agente',
       confirmado: false,
       tokenConfirmacion
     });
@@ -59,7 +60,9 @@ exports.confirmarCorreo = async (req, res, next) => {
 exports.iniciarSesion = async (req, res, next) => {
   try {
     const { correo, contrasena } = req.body;
+    console.log('[DEBUG LOGIN] correo recibido:', JSON.stringify(correo), '| contrasena recibida:', JSON.stringify(contrasena));
     const usuario = await Usuario.findOne({ correo }).select('+contrasena');
+    console.log('[DEBUG LOGIN] usuario encontrado:', !!usuario);
     if (!usuario) return res.status(401).json({ estado: 'error', mensaje: 'Credenciales inválidas' });
 
     if (!usuario.confirmado) {
@@ -89,6 +92,40 @@ exports.iniciarSesion = async (req, res, next) => {
     usuario.contrasena = undefined;
     
     res.status(200).json({ estado: 'exito', datos: { token, tokenRefresco, usuario } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Permite al usuario autenticado cambiar su contraseña.
+ */
+exports.cambiarContrasena = async (req, res, next) => {
+  try {
+    const { contrasenaActual, nuevaContrasena } = req.body;
+
+    if (!contrasenaActual || !nuevaContrasena) {
+      return res.status(400).json({ estado: 'error', mensaje: 'Se requiere la contraseña actual y la nueva contraseña' });
+    }
+
+    if (nuevaContrasena.length < 8) {
+      return res.status(400).json({ estado: 'error', mensaje: 'La nueva contraseña debe tener al menos 8 caracteres' });
+    }
+
+    const usuario = await Usuario.findById(req.user._id).select('+contrasena');
+    const esValida = await usuario.contrasenaCorrecta(contrasenaActual, usuario.contrasena);
+
+    if (!esValida) {
+      return res.status(401).json({ estado: 'error', mensaje: 'La contraseña actual es incorrecta' });
+    }
+
+    usuario.contrasena = nuevaContrasena;
+    await usuario.save();
+
+    const token = firmarToken(usuario._id);
+    const tokenRefresco = firmarTokenRefresco(usuario._id);
+
+    res.status(200).json({ estado: 'exito', mensaje: 'Contraseña actualizada correctamente', datos: { token, tokenRefresco } });
   } catch (error) {
     next(error);
   }
