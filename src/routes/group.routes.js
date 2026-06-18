@@ -1,12 +1,13 @@
 const express = require('express');
 const { proteger } = require('../middlewares/auth.middleware');
-const { obtenerGrupos, crearGrupo, obtenerMiembros, agregarMiembro, eliminarMiembro } = require('../controllers/group.controller');
+const { obtenerGrupos, crearGrupo, actualizarGrupo, obtenerMiembros, agregarMiembro, eliminarMiembro } = require('../controllers/group.controller');
 
 const router = express.Router();
 router.use(proteger);
 
 router.get('/', obtenerGrupos);
 router.post('/', crearGrupo);
+router.put('/:id', actualizarGrupo);
 
 // Rutas de miembros
 router.get('/:grupoId/miembros', obtenerMiembros);

@@ -1,5 +1,4 @@
 const Grupo = require('../models/Group');
-const ContactoGrupo = require('../models/ContactGroup');
 const Contacto = require('../models/Contact');
 
 /**
@@ -23,14 +22,35 @@ exports.crearGrupo = async (req, res, next) => {
     const grupo = await Grupo.create({ ...datosGrupo, propietario: req.user._id });
 
     if (contactos && Array.isArray(contactos) && contactos.length > 0) {
-      const relaciones = contactos.map(contactoId => ({
-        grupo: grupo._id,
-        contacto: contactoId
-      }));
-      await ContactoGrupo.insertMany(relaciones);
+      await Contacto.updateMany(
+        { _id: { $in: contactos } },
+        { $addToSet: { grupos: grupo._id } }
+      );
     }
 
     res.status(201).json({ estado: 'exito', datos: grupo });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Actualiza un grupo.
+ */
+exports.actualizarGrupo = async (req, res, next) => {
+  try {
+    const { nombre, descripcion } = req.body;
+    const grupo = await Grupo.findByIdAndUpdate(
+      req.params.id,
+      { nombre, descripcion },
+      { new: true, runValidators: true }
+    );
+
+    if (!grupo) {
+      return res.status(404).json({ estado: 'error', mensaje: 'Grupo no encontrado' });
+    }
+
+    res.status(200).json({ estado: 'exito', datos: grupo });
   } catch (error) {
     next(error);
   }
@@ -42,8 +62,7 @@ exports.crearGrupo = async (req, res, next) => {
 exports.obtenerMiembros = async (req, res, next) => {
   try {
     const { grupoId } = req.params;
-    const relaciones = await ContactoGrupo.find({ grupo: grupoId }).populate('contacto');
-    const contactos = relaciones.map(r => r.contacto);
+    const contactos = await Contacto.find({ grupos: grupoId }).populate('giro grupos');
     res.status(200).json({ estado: 'exito', datos: contactos });
   } catch (error) {
     next(error);
@@ -58,17 +77,16 @@ exports.agregarMiembro = async (req, res, next) => {
     const { grupoId } = req.params;
     const { contactoId } = req.body;
 
-    // Verificar que el contacto existe
-    const contacto = await Contacto.findById(contactoId);
+    const contacto = await Contacto.findByIdAndUpdate(
+      contactoId,
+      { $addToSet: { grupos: grupoId } },
+      { new: true }
+    );
+
     if (!contacto) return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
 
-    const relacion = await ContactoGrupo.create({ grupo: grupoId, contacto: contactoId });
-    res.status(201).json({ estado: 'exito', datos: relacion });
+    res.status(200).json({ estado: 'exito', datos: contacto });
   } catch (error) {
-    // Código 11000 = duplicate key (ya existe la relación)
-    if (error.code === 11000) {
-      return res.status(409).json({ estado: 'error', mensaje: 'El contacto ya pertenece a este grupo' });
-    }
     next(error);
   }
 };
@@ -79,7 +97,10 @@ exports.agregarMiembro = async (req, res, next) => {
 exports.eliminarMiembro = async (req, res, next) => {
   try {
     const { grupoId, contactoId } = req.params;
-    await ContactoGrupo.findOneAndDelete({ grupo: grupoId, contacto: contactoId });
+    await Contacto.findByIdAndUpdate(
+      contactoId,
+      { $pull: { grupos: grupoId } }
+    );
     res.status(200).json({ estado: 'exito', mensaje: 'Contacto eliminado del grupo' });
   } catch (error) {
     next(error);

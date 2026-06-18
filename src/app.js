@@ -64,6 +64,8 @@ app.use((req, res, next) => {
     '/canaco/contacts',
     '/canaco/groups',
     '/canaco/messages',
+    '/canaco/giros',
+    '/canaco/templates',
   ];
   if (sinCsrf.some(ruta => url.startsWith(ruta))) {
     return next();

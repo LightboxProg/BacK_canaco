@@ -35,3 +35,25 @@ exports.crearGiro = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Actualiza un giro comercial.
+ */
+exports.actualizarGiro = async (req, res, next) => {
+  try {
+    const { nombre, descripcion } = req.body;
+    const giro = await Giro.findByIdAndUpdate(
+      req.params.id,
+      { nombre: nombre.trim(), descripcion },
+      { new: true, runValidators: true }
+    );
+
+    if (!giro) {
+      return res.status(404).json({ estado: 'error', mensaje: 'Giro no encontrado' });
+    }
+
+    res.status(200).json({ estado: 'exito', datos: giro });
+  } catch (error) {
+    next(error);
+  }
+};

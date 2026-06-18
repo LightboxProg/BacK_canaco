@@ -60,9 +60,7 @@ exports.confirmarCorreo = async (req, res, next) => {
 exports.iniciarSesion = async (req, res, next) => {
   try {
     const { correo, contrasena } = req.body;
-    console.log('[DEBUG LOGIN] correo recibido:', JSON.stringify(correo), '| contrasena recibida:', JSON.stringify(contrasena));
     const usuario = await Usuario.findOne({ correo }).select('+contrasena');
-    console.log('[DEBUG LOGIN] usuario encontrado:', !!usuario);
     if (!usuario) return res.status(401).json({ estado: 'error', mensaje: 'Credenciales inválidas' });
 
     if (!usuario.confirmado) {

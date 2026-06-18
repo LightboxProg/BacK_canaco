@@ -1,5 +1,4 @@
 const Contacto = require('../models/Contact');
-const ContactoGrupo = require('../models/ContactGroup');
 
 /**
  * Controlador para obtener la lista de contactos del usuario autenticado.
@@ -45,7 +44,7 @@ exports.obtenerContactos = async (req, res, next) => {
       }
     ]);
 
-    const contactosPopulated = await Contacto.populate(contactosConUltimoMensaje, { path: 'giro' });
+    const contactosPopulated = await Contacto.populate(contactosConUltimoMensaje, { path: 'giro grupos' });
     res.status(200).json({ estado: 'exito', datos: contactosPopulated });
   } catch (error) {
     next(error);
@@ -60,23 +59,19 @@ exports.obtenerContactos = async (req, res, next) => {
  */
 exports.crearContacto = async (req, res, next) => {
   try {
-    const { grupos, ...datosContacto } = req.body;
+    const datosContacto = req.body;
     
-    if (datosContacto.giro === '') {
+    if (datosContacto.giro === '' || (Array.isArray(datosContacto.giro) && datosContacto.giro.length === 0)) {
       delete datosContacto.giro;
+    }
+
+    if (datosContacto.grupos === '' || (Array.isArray(datosContacto.grupos) && datosContacto.grupos.length === 0)) {
+      delete datosContacto.grupos;
     }
     
     let contacto = await Contacto.create({ ...datosContacto, propietario: req.user._id });
     
-    if (grupos && Array.isArray(grupos) && grupos.length > 0) {
-      const relaciones = grupos.map(grupoId => ({
-        grupo: grupoId,
-        contacto: contacto._id
-      }));
-      await ContactoGrupo.insertMany(relaciones);
-    }
-    
-    contacto = await contacto.populate('giro');
+    contacto = await contacto.populate('giro grupos');
     
     res.status(201).json({ estado: 'exito', datos: contacto });
   } catch (error) {
@@ -92,20 +87,12 @@ exports.crearContacto = async (req, res, next) => {
  */
 exports.obtenerContacto = async (req, res, next) => {
   try {
-    const contacto = await Contacto.findById(req.params.id).populate('giro');
+    const contacto = await Contacto.findById(req.params.id).populate('giro grupos');
     if (!contacto) {
       return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
     }
     
-    // Obtener los grupos a los que pertenece el contacto
-    const grupos = await ContactoGrupo.find({ contacto: req.params.id }).populate('grupo');
-    const gruposAsignados = grupos.map(g => g.grupo);
-    
-    // Convertir a un objeto plano para poder agregarle los grupos
-    const datosContacto = contacto.toObject();
-    datosContacto.grupos = gruposAsignados;
-
-    res.status(200).json({ estado: 'exito', datos: datosContacto });
+    res.status(200).json({ estado: 'exito', datos: contacto });
   } catch (error) {
     next(error);
   }
@@ -119,10 +106,14 @@ exports.obtenerContacto = async (req, res, next) => {
  */
 exports.actualizarContacto = async (req, res, next) => {
   try {
-    const { grupos, ...datosContacto } = req.body;
+    const datosContacto = req.body;
     
-    if (datosContacto.giro === '') {
-      datosContacto.giro = null;
+    if (datosContacto.giro === '' || (Array.isArray(datosContacto.giro) && datosContacto.giro.length === 0)) {
+      datosContacto.giro = [];
+    }
+
+    if (datosContacto.grupos === '' || (Array.isArray(datosContacto.grupos) && datosContacto.grupos.length === 0)) {
+      datosContacto.grupos = [];
     }
 
     datosContacto.registrado = true;
@@ -137,22 +128,7 @@ exports.actualizarContacto = async (req, res, next) => {
       return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
     }
 
-    // Actualizar grupos si se envían
-    if (grupos && Array.isArray(grupos)) {
-      // Eliminar relaciones anteriores
-      await ContactoGrupo.deleteMany({ contacto: contacto._id });
-      
-      if (grupos.length > 0) {
-        // Crear nuevas relaciones
-        const relaciones = grupos.map(grupoId => ({
-          grupo: grupoId,
-          contacto: contacto._id
-        }));
-        await ContactoGrupo.insertMany(relaciones);
-      }
-    }
-
-    contacto = await contacto.populate('giro');
+    contacto = await contacto.populate('giro grupos');
     
     res.status(200).json({ estado: 'exito', datos: contacto });
   } catch (error) {
