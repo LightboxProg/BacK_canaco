@@ -116,20 +116,18 @@ exports.actualizarContacto = async (req, res, next) => {
       datosContacto.grupos = [];
     }
 
-    // Si el contacto no tiene un propietario asignado, se le asigna el usuario actual
-    if (!datosContacto.propietario) {
-      datosContacto.propietario = req.user._id;
-    }
-
-    let contacto = await Contacto.findByIdAndUpdate(
-      req.params.id,
-      datosContacto,
-      { new: true, runValidators: true }
-    );
+    let contacto = await Contacto.findById(req.params.id);
 
     if (!contacto) {
       return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
     }
+
+    if (!datosContacto.propietario && !contacto.propietario) {
+      datosContacto.propietario = req.user._id;
+    }
+
+    Object.assign(contacto, datosContacto);
+    await contacto.save();
 
     contacto = await contacto.populate('giro grupos');
     

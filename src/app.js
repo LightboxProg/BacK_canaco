@@ -31,7 +31,7 @@ app.disable('x-powered-by');
 
 // CORS for Angular frontend
 app.use(cors({
-  origin: env.ALLOWED_ORIGINS || 'http://localhost:4200',
+  origin: env.ALLOWED_ORIGINS.includes(',') ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : env.ALLOWED_ORIGINS,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'CSRF-Token'],
   credentials: true,

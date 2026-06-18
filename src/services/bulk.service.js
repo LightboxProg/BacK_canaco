@@ -88,7 +88,7 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
         }
       }
 
-      let telefonoFormateado = c.telefono;
+      let telefonoFormateado = c.telefono || c.identificadorMeta;
       if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
         telefonoFormateado = '52' + telefonoFormateado.substring(3);
       }

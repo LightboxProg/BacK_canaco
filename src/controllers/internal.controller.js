@@ -20,23 +20,47 @@ exports.recibirMensaje = async (req, res, next) => {
     }
 
     const telLimpio = contactPhone.replace(/\D/g, '');
-    let telAlternativo = telLimpio;
+    let identificadorMeta = telLimpio;
+    let telefonoWhatsapp = telLimpio;
+
     if (telLimpio.startsWith('521') && telLimpio.length === 13) {
-      telAlternativo = '52' + telLimpio.substring(3);
+      identificadorMeta = telLimpio;
+      telefonoWhatsapp = '52' + telLimpio.substring(3);
     } else if (telLimpio.startsWith('52') && telLimpio.length === 12) {
-      telAlternativo = '521' + telLimpio.substring(2);
+      identificadorMeta = '521' + telLimpio.substring(2);
+      telefonoWhatsapp = telLimpio;
     }
 
-    // 1. Buscar si el contacto ya existe por su teléfono
-    let contacto = await Contacto.findOne({ telefono: { $in: [telLimpio, telAlternativo] } });
+    // 1. Buscar o crear el contacto buscando por ambos identificadores
+    let contacto = await Contacto.findOne({
+      $or: [
+        { identificadorMeta: identificadorMeta },
+        { telefono: telefonoWhatsapp },
+        { telefono: identificadorMeta },
+        { identificadorMeta: telefonoWhatsapp }
+      ]
+    });
     
     // Si no existe, crearlo
     if (!contacto) {
       contacto = await Contacto.create({ 
-        telefono: telLimpio, 
-        nombre: contactName || 'Desconocido',
-        registrado: false
+        telefono: telefonoWhatsapp, 
+        identificadorMeta: identificadorMeta,
+        nombre: contactName || 'Desconocido'
       });
+    } else {
+      let modificado = false;
+      if (!contacto.identificadorMeta) {
+        contacto.identificadorMeta = identificadorMeta;
+        modificado = true;
+      }
+      if (contacto.telefono !== telefonoWhatsapp) {
+        contacto.telefono = telefonoWhatsapp;
+        modificado = true;
+      }
+      if (modificado) {
+        await contacto.save();
+      }
     }
 
     // 2. Si es un archivo multimedia o documento, procesarlo

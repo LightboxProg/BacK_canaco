@@ -64,7 +64,7 @@ exports.enviarIndividual = async (req, res, next) => {
     res.status(201).json({ estado: 'exito', datos: mensaje });
 
     // 4. Enviar el payload a través de n8n hacia Meta de manera asíncrona
-    let telefonoFormateado = contacto.telefono;
+    let telefonoFormateado = contacto.telefono || contacto.identificadorMeta;
     if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
       telefonoFormateado = '52' + telefonoFormateado.substring(3);
     }
@@ -147,25 +147,51 @@ exports.recibirMensaje = async (req, res, next) => {
     }
 
     const telLimpio = telefono.replace(/\D/g, '');
-    let telAlternativo = telLimpio;
+    let identificadorMeta = telLimpio;
+    let telefonoWhatsapp = telLimpio;
+
     if (telLimpio.startsWith('521') && telLimpio.length === 13) {
-      telAlternativo = '52' + telLimpio.substring(3);
+      identificadorMeta = telLimpio;
+      telefonoWhatsapp = '52' + telLimpio.substring(3);
     } else if (telLimpio.startsWith('52') && telLimpio.length === 12) {
-      telAlternativo = '521' + telLimpio.substring(2);
+      identificadorMeta = '521' + telLimpio.substring(2);
+      telefonoWhatsapp = telLimpio;
     }
 
-    // 1. Buscar o crear el contacto
-    let contacto = await Contacto.findOne({ telefono: { $in: [telLimpio, telAlternativo] } });
+    // 1. Buscar o crear el contacto buscando por ambos identificadores
+    let contacto = await Contacto.findOne({
+      $or: [
+        { identificadorMeta: identificadorMeta },
+        { telefono: telefonoWhatsapp },
+        { telefono: identificadorMeta },
+        { identificadorMeta: telefonoWhatsapp }
+      ]
+    });
+
     if (!contacto) {
       contacto = await Contacto.create({ 
-        telefono: telLimpio, 
+        telefono: telefonoWhatsapp, 
+        identificadorMeta: identificadorMeta,
         nombre: nombre || 'Desconocido',
-        region: region || '',
-        registrado: false
+        region: region || ''
       });
-    } else if (region && !contacto.region) {
-      contacto.region = region;
-      await contacto.save();
+    } else {
+      let modificado = false;
+      if (!contacto.identificadorMeta) {
+        contacto.identificadorMeta = identificadorMeta;
+        modificado = true;
+      }
+      if (contacto.telefono !== telefonoWhatsapp) {
+        contacto.telefono = telefonoWhatsapp;
+        modificado = true;
+      }
+      if (region && !contacto.region) {
+        contacto.region = region;
+        modificado = true;
+      }
+      if (modificado) {
+        await contacto.save();
+      }
     }
 
     // 2. Si es una imagen u otro archivo con URL o Base64, procesarlo
