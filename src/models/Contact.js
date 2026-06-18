@@ -14,16 +14,13 @@ const esquemaContacto = new mongoose.Schema({
   empresa: { type: String },
   codigoPostal: { type: String },
   numEmpleados: { type: Number },
-  afiliacion: { type: Boolean, default: false },
+  afiliado: { type: Boolean, default: false },
   siem: { type: Boolean, default: false },
   sucursal: { type: String },
   giro: [{ type: mongoose.Schema.ObjectId, ref: 'Giro' }],
   grupos: [{ type: mongoose.Schema.ObjectId, ref: 'Grupo' }],
   vigente: { type: Boolean, default: false },
-  afiliado1: { type: Boolean, default: false },
-  afiliado2: { type: Boolean, default: false },
-  afiliado3: { type: Boolean, default: false },
-  registrado: { type: Boolean, default: true }
+  capacitacion: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Contacto', esquemaContacto);

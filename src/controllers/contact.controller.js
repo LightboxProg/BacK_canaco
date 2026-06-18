@@ -116,7 +116,10 @@ exports.actualizarContacto = async (req, res, next) => {
       datosContacto.grupos = [];
     }
 
-    datosContacto.registrado = true;
+    // Si el contacto no tiene un propietario asignado, se le asigna el usuario actual
+    if (!datosContacto.propietario) {
+      datosContacto.propietario = req.user._id;
+    }
 
     let contacto = await Contacto.findByIdAndUpdate(
       req.params.id,
