@@ -8,13 +8,13 @@ exports.globalLimiter = rateLimit({
 
 exports.authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 20,
   message: { status: 'error', message: 'Too many login attempts' }
 });
 
 exports.bulkLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 10, // Increased to 10 requests per 5 minutes for testing
+  max: 50, // Increased to 10 requests per 5 minutes for testing
   keyGenerator: (req) => req.user ? req.user._id.toString() : 'anonymous',
   message: { status: 'error', message: 'Too many bulk messages allowed per 5 minutes' }
 });
