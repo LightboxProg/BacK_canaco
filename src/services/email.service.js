@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const entorno = require('../config/environment');
+const logger = require('../utils/logger');
 
 const crearTransportador = () => {
   return nodemailer.createTransport({
@@ -15,8 +16,8 @@ const crearTransportador = () => {
 
 exports.enviarCorreoConfirmacion = async (correo, token) => {
   if (!entorno.SMTP_USER || !entorno.SMTP_PASS || entorno.SMTP_USER === 'tu_correo@gmail.com') {
-    console.warn('⚠️ Credenciales de SMTP no configuradas o usando valores por defecto. Simulando envío de correo a', correo);
-    console.warn(`Enlace de confirmación: ${entorno.FRONTEND_URL}/confirmar/${token}`);
+    logger.warn(`Credenciales de SMTP no configuradas o usando valores por defecto. Simulando envio de correo a ${correo}`);
+    logger.warn(`Enlace de confirmacion: ${entorno.FRONTEND_URL}/confirmar/${token}`);
     return;
   }
 
@@ -35,5 +36,7 @@ exports.enviarCorreoConfirmacion = async (correo, token) => {
     `,
   };
 
+  logger.info(`Enviando correo de confirmacion a: ${correo}`);
   await transportador.sendMail(opcionesCorreo);
+  logger.info(`Correo de confirmacion enviado con exito a: ${correo}`);
 };
