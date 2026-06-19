@@ -1,13 +1,10 @@
 const BulkJob = require('../models/BulkJob');
 const Contacto = require('../models/Contact');
-const ContactGroup = require('../models/ContactGroup');
 const n8nService = require('./n8n.service');
 const registrador = require('../utils/logger');
 
 /**
  * Procesa en segundo plano un trabajo de envio masivo de mensajes.
- * Extrae los telefonos unicos desde los IDs de contactos o grupos seleccionados en la UI.
- * Limita el procesamiento a 1000 elementos para evitar colapso y bloqueos por rate limiting.
  */
 exports.procesarTrabajoMasivo = async (idTrabajo) => {
   try {
@@ -24,10 +21,11 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
     // 2. Extraer contactos de cada grupo (evitando que se dupliquen)
     if (trabajo.gruposIds && trabajo.gruposIds.length > 0) {
       for (const groupId of trabajo.gruposIds) {
-        const relacionesContactos = await ContactGroup.find({ group: groupId }).select('contact');
-        relacionesContactos.forEach(rel => {
-          if (!contactosAProcesar.includes(rel.contact.toString())) {
-            contactosAProcesar.push(rel.contact.toString());
+        const contactosDelGrupo = await Contacto.find({ grupos: groupId }).select('_id');
+        contactosDelGrupo.forEach(c => {
+          const cId = c._id.toString();
+          if (!contactosAProcesar.includes(cId)) {
+            contactosAProcesar.push(cId);
           }
         });
       }
@@ -41,13 +39,23 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
     // 4. Obtener los datos reales (telefono y nombre) de la BD
     const contactos = await Contacto.find({ _id: { $in: contactosAProcesar } });
 
-    // Actualizar el estado del trabajo a "en ejecucion" (running)
-    trabajo.estado = 'ejecutando';
-    trabajo.totalContactos = contactos.length;
-    await trabajo.save();
+    // 5. Formatear la lista de contactos con sus respectivos componentes personalizados y evitar duplicidad de telefonos
+    const telefonosVistos = new Set();
+    const contactosFormateados = [];
 
-    // 5. Formatear la lista de contactos con sus respectivos componentes personalizados
-    const contactosFormateados = contactos.map(c => {
+    for (const c of contactos) {
+      let telefonoFormateado = c.telefono || c.identificadorMeta;
+      if (!telefonoFormateado) continue;
+
+      if (telefonoFormateado.startsWith('521')) {
+        telefonoFormateado = '52' + telefonoFormateado.substring(3);
+      }
+
+      if (telefonosVistos.has(telefonoFormateado)) {
+        continue;
+      }
+      telefonosVistos.add(telefonoFormateado);
+
       const componentes = [];
       if (trabajo.componentesPlantilla) {
         const { urlImagen, valoresVariables } = trabajo.componentesPlantilla;
@@ -88,19 +96,19 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
         }
       }
 
-      let telefonoFormateado = c.telefono || c.identificadorMeta;
-      if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
-        telefonoFormateado = '52' + telefonoFormateado.substring(3);
-      }
-
-      return {
+      contactosFormateados.push({
         telefono: telefonoFormateado,
         nombre: c.nombre,
         componentes: componentes
-      };
-    });
+      });
+    }
 
-    // 6. Llamar al webhook de n8n pasandole los objetos formateados en espanol
+    // Actualizar el estado del trabajo a "en ejecucion" (running) con el numero real de destinatarios unicos
+    trabajo.estado = 'ejecutando';
+    trabajo.totalContactos = contactosFormateados.length;
+    await trabajo.save();
+
+    // 6. Llamar al webhook de n8n pasandole los objetos formateados
     await n8nService.enviarMensajesMasivos({
       jobId: trabajo._id,
       plantilla: trabajo.nombrePlantilla,
@@ -108,7 +116,7 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
       contactos: contactosFormateados
     });
 
-    registrador.info(`Trabajo masivo ${trabajo._id} iniciado en n8n con ${contactos.length} destinatarios`);
+    registrador.info(`Trabajo masivo ${trabajo._id} iniciado en n8n con ${contactosFormateados.length} destinatarios únicos`);
 
   } catch (error) {
     registrador.error(`Error procesando trabajo masivo: ${error.message}`);
