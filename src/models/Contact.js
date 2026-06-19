@@ -21,7 +21,8 @@ const esquemaContacto = new mongoose.Schema({
   giro: [{ type: mongoose.Schema.ObjectId, ref: 'Giro' }],
   grupos: [{ type: mongoose.Schema.ObjectId, ref: 'Grupo' }],
   vigente: { type: Boolean, default: false },
-  capacitacion: { type: Boolean, default: false }
+  capacitacion: { type: Boolean, default: false },
+  ultimoAutoEnvio: { type: Date }
 }, { timestamps: true });
 
 /**

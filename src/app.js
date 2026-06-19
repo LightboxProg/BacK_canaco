@@ -14,6 +14,7 @@ const errorHandler = require('./middlewares/errorHandler.middleware');
 const routes = require('./routes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Serve uploaded files statically
 app.use('/canaco/uploads', express.static(path.join(__dirname, '..', 'uploads')));

@@ -5,6 +5,7 @@ const bulkService = require('../services/bulk.service');
 const mediaService = require('../services/media.service');
 const Contacto = require('../models/Contact');
 const { obtenerIO } = require('../config/socket');
+const autoreplyService = require('../services/autoreply.service');
 
 /**
  * Controlador para enviar un mensaje individual a un contacto específico.
@@ -91,7 +92,7 @@ exports.enviarIndividual = async (req, res, next) => {
     }).catch(async (err) => {
       console.error(`Error al enviar mensaje a n8n para ${contacto.telefono}:`, err.message);
       try {
-        const mensajeFallido = await Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'fallido' }, { new: true });
+        const mensajeFallido = await Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'fallido' }, { returnDocument: 'after' });
         if (mensajeFallido) {
           obtenerIO().emit('estado_mensaje', { mensajeId: mensajeFallido._id, estado: 'fallido' });
         }
@@ -250,6 +251,8 @@ exports.recibirMensaje = async (req, res, next) => {
     }
 
     res.status(201).json({ estado: 'exito', datos: mensaje });
+
+    autoreplyService.manejarAutoRespuesta(contacto._id, contacto.telefono);
   } catch (error) {
     next(error);
   }

@@ -12,6 +12,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32).default('change_this_super_secret_key_min_32_chars_fallback'),
   ALLOWED_ORIGINS: z.string().default('http://localhost:4200'),
   INTERNAL_API_KEY: z.string().default('change_this_internal_key_min_32_chars_fallback'),
+  OUT_OF_OFFICE_MESSAGE: z.string().default('Hola. Gracias por escribirnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 AM a 6:00 PM. Te responderemos en cuanto iniciemos labores.'),
   SMTP_HOST: z.string().optional().default('smtp.gmail.com'),
   SMTP_PORT: z.string().optional().default('587'),
   SMTP_USER: z.string().optional(),

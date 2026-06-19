@@ -4,8 +4,8 @@ const entorno = require('../config/environment');
 const Usuario = require('../models/User');
 const { enviarCorreoConfirmacion } = require('../services/email.service');
 
-const firmarToken = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '24h' });
-const firmarTokenRefresco = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '7d' });
+const firmarToken = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '365d' });
+const firmarTokenRefresco = id => jwt.sign({ id }, entorno.JWT_SECRET, { expiresIn: '365d' });
 
 /**
  * Registra un nuevo usuario en el sistema.
@@ -86,7 +86,7 @@ exports.iniciarSesion = async (req, res, next) => {
     const token = firmarToken(usuario._id);
     const tokenRefresco = firmarTokenRefresco(usuario._id);
 
-    res.cookie('jwt', token, { httpOnly: true, secure: entorno.NODE_ENV === 'production', sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });
+    res.cookie('jwt', token, { httpOnly: true, secure: entorno.NODE_ENV === 'production', sameSite: 'strict', maxAge: 365 * 24 * 60 * 60 * 1000 });
     usuario.contrasena = undefined;
     
     res.status(200).json({ estado: 'exito', datos: { token, tokenRefresco, usuario } });
@@ -124,6 +124,24 @@ exports.cambiarContrasena = async (req, res, next) => {
     const tokenRefresco = firmarTokenRefresco(usuario._id);
 
     res.status(200).json({ estado: 'exito', mensaje: 'Contraseña actualizada correctamente', datos: { token, tokenRefresco } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Obtiene la lista de todos los usuarios registrados.
+ */
+exports.obtenerUsuarios = async (req, res, next) => {
+  try {
+    const usuarios = await Usuario.find()
+      .select('nombre correo rol createdAt')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      estado: 'exito',
+      datos: usuarios
+    });
   } catch (error) {
     next(error);
   }

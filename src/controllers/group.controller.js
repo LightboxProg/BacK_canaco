@@ -43,7 +43,7 @@ exports.actualizarGrupo = async (req, res, next) => {
     const grupo = await Grupo.findByIdAndUpdate(
       req.params.id,
       { nombre, descripcion },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!grupo) {
@@ -80,7 +80,7 @@ exports.agregarMiembro = async (req, res, next) => {
     const contacto = await Contacto.findByIdAndUpdate(
       contactoId,
       { $addToSet: { grupos: grupoId } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!contacto) return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });

@@ -45,7 +45,7 @@ exports.actualizarGiro = async (req, res, next) => {
     const giro = await Giro.findByIdAndUpdate(
       req.params.id,
       { nombre: nombre.trim(), descripcion },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!giro) {

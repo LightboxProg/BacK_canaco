@@ -33,7 +33,8 @@ const esquemaMensaje = new mongoose.Schema({
   mimeType: { type: String },
 
   // Nombre original del archivo (opcional, útil para documentos)
-  nombreArchivo: { type: String }
+  nombreArchivo: { type: String },
+  esAutoRespuesta: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Mensaje', esquemaMensaje);

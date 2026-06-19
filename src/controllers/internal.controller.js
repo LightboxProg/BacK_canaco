@@ -3,6 +3,7 @@ const Contacto = require('../models/Contact');
 const mediaService = require('../services/media.service');
 const { obtenerIO } = require('../config/socket');
 const registrador = require('../utils/logger');
+const autoreplyService = require('../services/autoreply.service');
 
 /**
  * Controlador para recibir mensajes entrantes desde n8n.
@@ -115,6 +116,8 @@ exports.recibirMensaje = async (req, res, next) => {
     }
 
     res.status(201).json({ estado: 'exito' });
+    
+    autoreplyService.manejarAutoRespuesta(contacto._id, contacto.telefono);
   } catch (error) {
     next(error);
   }
