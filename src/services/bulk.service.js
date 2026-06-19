@@ -31,6 +31,19 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
       }
     }
 
+    // 2.5 Extraer contactos de cada giro (evitando que se dupliquen)
+    if (trabajo.girosIds && trabajo.girosIds.length > 0) {
+      for (const giroId of trabajo.girosIds) {
+        const contactosDelGiro = await Contacto.find({ giro: giroId }).select('_id');
+        contactosDelGiro.forEach(c => {
+          const cId = c._id.toString();
+          if (!contactosAProcesar.includes(cId)) {
+            contactosAProcesar.push(cId);
+          }
+        });
+      }
+    }
+
     // 3. Limitamos por seguridad a rafagas de 1000 envios
     if (contactosAProcesar.length > 1000) {
       contactosAProcesar = contactosAProcesar.slice(0, 1000);

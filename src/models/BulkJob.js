@@ -12,7 +12,8 @@ const esquemaTrabajoMasivo = new mongoose.Schema({
   componentesPlantilla: { type: mongoose.Schema.Types.Mixed },
   totalContactos: { type: Number, default: 0 },
   contactosIds: [{ type: mongoose.Schema.ObjectId, ref: 'Contacto' }],
-  gruposIds: [{ type: mongoose.Schema.ObjectId, ref: 'Grupo' }]
+  gruposIds: [{ type: mongoose.Schema.ObjectId, ref: 'Grupo' }],
+  girosIds: [{ type: mongoose.Schema.ObjectId, ref: 'Giro' }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('TrabajoMasivo', esquemaTrabajoMasivo);

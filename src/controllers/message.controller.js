@@ -111,7 +111,7 @@ exports.enviarIndividual = async (req, res, next) => {
  */
 exports.enviarMasivo = async (req, res, next) => {
   try {
-    const { gruposIds, contactosIds, contenido, nombrePlantilla, idiomaPlantilla, componentesPlantilla } = req.body;
+    const { gruposIds, contactosIds, girosIds, contenido, nombrePlantilla, idiomaPlantilla, componentesPlantilla } = req.body;
 
     // 1. Crear el trabajo en la BD (BulkJob)
     const trabajoMasivo = await BulkJob.create({
@@ -122,6 +122,7 @@ exports.enviarMasivo = async (req, res, next) => {
       componentesPlantilla: componentesPlantilla || null,
       contactosIds: contactosIds,
       gruposIds: gruposIds,
+      girosIds: girosIds || [],
       estado: 'pendiente'
     });
 
