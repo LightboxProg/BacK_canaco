@@ -24,11 +24,14 @@ exports.registrar = async (req, res, next) => {
       tokenConfirmacion
     });
     
-    await enviarCorreoConfirmacion(nuevoUsuario.correo, tokenConfirmacion);
-    
     res.status(201).json({ 
       estado: 'exito', 
       mensaje: 'Registro exitoso. Por favor revisa tu correo electrónico para confirmar tu cuenta.' 
+    });
+
+    enviarCorreoConfirmacion(nuevoUsuario.correo, tokenConfirmacion).catch(error => {
+      const logger = require('../utils/logger');
+      logger.error(`Error al enviar correo de confirmacion a ${nuevoUsuario.correo}: ${error.message}`);
     });
   } catch (error) {
     next(error);
