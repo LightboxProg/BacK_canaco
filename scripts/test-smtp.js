@@ -34,13 +34,13 @@ async function testSMTP() {
 
     const opcionesCorreo = {
       from: `"Prueba Soporte" <${entorno.SMTP_USER}>`,
-      to: entorno.SMTP_USER,
+      to: 'luisen.perezgonzalez@gmail.com',
       subject: 'Prueba de conexión SMTP',
       text: 'Si recibes este correo, la configuración SMTP es correcta.',
       html: '<h1>Prueba de conexión SMTP</h1><p>Si recibes este correo, la configuración SMTP es correcta.</p>',
     };
 
-    console.log('Enviando correo de prueba a:', entorno.SMTP_USER);
+    console.log('Enviando correo de prueba a: luisen.perezgonzalez@gmail.com');
     const info = await transportador.sendMail(opcionesCorreo);
     console.log('Correo enviado con éxito. ID del mensaje:', info.messageId);
   } catch (error) {
