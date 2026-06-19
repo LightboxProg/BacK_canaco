@@ -8,7 +8,7 @@ exports.globalLimiter = rateLimit({
 
 exports.authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 100,
   message: { status: 'error', message: 'Too many login attempts' }
 });
 
