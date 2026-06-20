@@ -7,27 +7,33 @@ const Contacto = require('../models/Contact');
 const { obtenerIO } = require('../config/socket');
 const autoreplyService = require('../services/autoreply.service');
 
-/**
- * Controlador para enviar un mensaje individual a un contacto específico.
- * Llama al webhook individual de n8n de manera asíncrona.
- */
+// Envia un mensaje individual y activa plantilla si la ventana de 24 horas esta cerrada.
 exports.enviarIndividual = async (req, res, next) => {
   try {
     const { contactoId, contenido, tipo, base64Media, mimeType, fileName } = req.body;
     
-    // 1. Verificar si el contacto existe
     const contacto = await Contacto.findById(contactoId);
     if (!contacto) return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
 
     let archivoUrl = null;
-
-    // 2. Si hay un archivo adjunto, subirlo a S3 primero
     if (base64Media && tipo !== 'text' && tipo !== 'texto') {
       archivoUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
     }
 
-    // Calcular texto fallback para el campo contenido de la BD si viene vacío con multimedia
-    let textoContenido = contenido || '';
+    const limite24Horas = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const mensajeReciente = await Mensaje.findOne({
+      contacto: contactoId,
+      direccion: 'entrante',
+      createdAt: { $gte: limite24Horas }
+    });
+
+    const tieneVentanaActiva = !!mensajeReciente;
+    let tipoFinal = tipo || 'texto';
+    let contenidoFinal = contenido || '';
+    let plantillaNombre = null;
+    let plantillaIdioma = null;
+    let textoContenido = contenidoFinal;
+
     if (!textoContenido && base64Media) {
       const iconos = { 
         'image': '📷 Imagen enviada', 
@@ -40,11 +46,17 @@ exports.enviarIndividual = async (req, res, next) => {
       textoContenido = `${iconos[tipo] || '📎 Archivo'} enviado`;
     }
 
-    // 3. Guardar el mensaje saliente en la BD como 'pendiente'
+    if (!tieneVentanaActiva) {
+      tipoFinal = 'template';
+      plantillaNombre = 'inicio_conversacion';
+      plantillaIdioma = 'es_MX';
+      textoContenido = contenidoFinal || 'Plantilla: inicio_conversacion';
+    }
+
     const mensaje = await Mensaje.create({
       contacto: contactoId,
       contenido: textoContenido,
-      tipo: tipo || 'texto',
+      tipo: tipoFinal,
       direccion: 'saliente',
       estado: 'pendiente',
       archivoUrl,
@@ -64,21 +76,22 @@ exports.enviarIndividual = async (req, res, next) => {
 
     res.status(201).json({ estado: 'exito', datos: mensaje });
 
-    // 4. Enviar el payload a través de n8n hacia Meta de manera asíncrona
     let telefonoFormateado = contacto.telefono || contacto.identificadorMeta;
     if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
       telefonoFormateado = '52' + telefonoFormateado.substring(3);
     }
 
-    const tipoN8n = (tipo === 'texto' || tipo === 'text' || !tipo) ? 'text' : tipo;
+    const tipoN8n = (tipoFinal === 'texto' || tipoFinal === 'text' || !tipoFinal) ? 'text' : tipoFinal;
 
     n8nService.enviarMensajeIndividual({
       telefono: telefonoFormateado,
-      mensaje: contenido || '',
-      contenido: contenido || '',
+      mensaje: contenidoFinal,
+      contenido: contenidoFinal,
       tipo: tipoN8n,
+      plantilla: plantillaNombre,
+      idioma: plantillaIdioma,
       mensajeId: mensaje._id,
-      mediaUrl: archivoUrl,
+      mediaUrl: tipoFinal === 'template' ? null : archivoUrl,
       fileName
     }).then(() => {
       Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'enviado' }).exec()

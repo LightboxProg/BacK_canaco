@@ -9,32 +9,39 @@
             "type": "n8n-nodes-base.webhook",
             "typeVersion": 2.1,
             "position": [
-                -1104,
-                784
+                -1120,
+                768
             ],
-            "id": "b424dcc4-c01c-4295-80ee-329e75ff1d6f",
+            "id": "1f2fd396-ea25-44ba-907f-561a6413c63b",
             "name": "Webhook CRM Reply",
             "webhookId": "5cc0f696-7275-4c10-bfba-e21ad0fc9249"
         },
         {
             "parameters": {
-                "jsCode": "const body = $input.item.json.body;\nconst tipo = body.tipo || 'text';\nconst mensaje = body.mensaje || '';\nconst telefono = body.telefono;\nconst mediaUrl = body.mediaUrl;\nconst fileName = body.fileName || 'archivo';\n\nlet cleanedPhone = String(telefono).replace(/\\D/g, '');\nif (cleanedPhone.startsWith('521') && cleanedPhone.length === 13) {\n  cleanedPhone = '52' + cleanedPhone.substring(3);\n}\n\nlet payload = {\n  messaging_product: 'whatsapp',\n  to: cleanedPhone,\n  type: tipo\n};\n\nif (tipo === 'text') {\n  payload.text = { body: mensaje };\n} else if (tipo === 'image') {\n  payload.image = { link: mediaUrl };\n  if (mensaje) payload.image.caption = mensaje;\n} else if (tipo === 'audio') {\n  payload.audio = { link: mediaUrl };\n} else if (tipo === 'video') {\n  payload.video = { link: mediaUrl };\n  if (mensaje) payload.video.caption = mensaje;\n} else if (tipo === 'document') {\n  payload.document = { link: mediaUrl, filename: fileName };\n  if (mensaje) payload.document.caption = mensaje;\n}\n\n$input.item.json.fbPayload = payload;\nreturn $input.item;"
+                "jsCode": "const body = $input.item.json.body;\nconst tipo = body.tipo || 'text';\nconst mensaje = body.mensaje || '';\nconst telefono = body.telefono;\nconst mediaUrl = body.mediaUrl;\nconst fileName = body.fileName || 'archivo';\n\nlet cleanedPhone = String(telefono).replace(/\\D/g, '');\nif (cleanedPhone.startsWith('521') && cleanedPhone.length === 13) {\n  cleanedPhone = '52' + cleanedPhone.substring(3);\n}\n\nlet payload = {\n  messaging_product: 'whatsapp',\n  to: cleanedPhone,\n  type: tipo === 'plantilla' ? 'template' : tipo\n};\n\nif (tipo === 'text') {\n  payload.text = { body: mensaje };\n} else if (tipo === 'template' || tipo === 'plantilla') {\n  payload.template = {\n    name: body.plantilla || 'inicio_conversacion',\n    language: {\n      code: body.idioma || 'es_MX'\n    }\n  };\n} else if (tipo === 'image') {\n  payload.image = { link: mediaUrl };\n  if (mensaje) payload.image.caption = mensaje;\n} else if (tipo === 'audio') {\n  payload.audio = { link: mediaUrl };\n} else if (tipo === 'video') {\n  payload.video = { link: mediaUrl };\n  if (mensaje) payload.video.caption = mensaje;\n} else if (tipo === 'document') {\n  payload.document = { link: mediaUrl, filename: fileName };\n  if (mensaje) payload.document.caption = mensaje;\n}\n\n$input.item.json.fbPayload = payload;\nreturn $input.item;"
             },
-            "id": "330a1f89-167b-4e2c-bbc4-39fd2a410cdc",
+            "id": "846d6039-a45c-4045-b03c-318b06a11146",
             "name": "Prepare Payload",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                -880,
-                784
+                -896,
+                768
             ]
         },
         {
             "parameters": {
                 "method": "POST",
-                "url": "https://graph.facebook.com/v20.0/164144560120336/messages",
-                "authentication": "predefinedCredentialType",
-                "nodeCredentialType": "whatsAppApi",
+                "url": "https://graph.facebook.com/v20.0/1243000428885636/messages",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer EAAVpSGfz9ewBR25fLGOzZBjAAlCXRG5Ozi8tgJ3T6oeP8DMWkZAzX6Yj3KUZATeLUxBVYJ4XLiYn1iFUFZC7ZAmZCOwGtHooysWYzu1T3V19JOcr8IPqraONRfxjB8lhMBMt60UrtJFfwKdXyu69YsqOII6JbOw44ZA5IQhfsnuxwUZAtxHLVl35D76e1sZCZBKhYZCsAZDZD"
+                        }
+                    ]
+                },
                 "sendBody": true,
                 "specifyBody": "json",
                 "jsonBody": "={{ $json.fbPayload }}",
@@ -47,13 +54,7 @@
             "position": [
                 -656,
                 784
-            ],
-            "credentials": {
-                "whatsAppApi": {
-                    "id": "zCBMXV3tB67SCEM4",
-                    "name": "Prueba"
-                }
-            }
+            ]
         }
     ],
     "connections": {

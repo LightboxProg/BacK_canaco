@@ -9,10 +9,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -768,
-        976
+        -848,
+        1024
       ],
-      "id": "2faadc4d-2382-4956-a7eb-d4a78e8812d1",
+      "id": "6b8f8e4b-ea1a-43df-b20a-16d169671f4c",
       "name": "Webhook2",
       "webhookId": "17d6cde8-5492-40b6-a8fa-31257e0a15d7"
     },
@@ -25,22 +25,22 @@
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
       "position": [
-        -592,
-        976
+        -672,
+        1024
       ],
-      "id": "e0b252e0-7a53-4bef-8e23-73594edf477b",
+      "id": "7d2c379f-429e-4684-b863-83bdad787bea",
       "name": "Split Out"
     },
     {
       "parameters": {
         "method": "=POST",
-        "url": "=https://graph.facebook.com/v20.0/{{ $('Webhook2').item.json.body.wabaId }}/messages",
+        "url": "https://graph.facebook.com/v20.0/1243000428885636/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $('Webhook2').item.json.body.metaToken }}"
+              "value": "Bearer EAAVpSGfz9ewBR25fLGOzZBjAAlCXRG5Ozi8tgJ3T6oeP8DMWkZAzX6Yj3KUZATeLUxBVYJ4XLiYn1iFUFZC7ZAmZCOwGtHooysWYzu1T3V19JOcr8IPqraONRfxjB8lhMBMt60UrtJFfwKdXyu69YsqOII6JbOw44ZA5IQhfsnuxwUZAtxHLVl35D76e1sZCZBKhYZCsAZDZD"
             }
           ]
         },
@@ -52,10 +52,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -400,
-        976
+        -480,
+        1024
       ],
-      "id": "46ce197f-b249-4ecf-8b81-4c2a7cf70cf6",
+      "id": "0ee8c584-4818-4fb8-a55f-5fdf31037bd0",
       "name": "HTTP Request15*"
     }
   ],

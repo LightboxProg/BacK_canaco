@@ -2,80 +2,219 @@
     "nodes": [
         {
             "parameters": {
-                "httpMethod": "POST",
-                "path": "masivos",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.webhook",
-            "typeVersion": 2.1,
-            "position": [
-                -768,
-                976
-            ],
-            "id": "2faadc4d-2382-4956-a7eb-d4a78e8812d1",
-            "name": "Webhook2",
-            "webhookId": "17d6cde8-5492-40b6-a8fa-31257e0a15d7"
-        },
-        {
-            "parameters": {
-                "fieldToSplitOut": "body.contactos",
-                "include": "allOtherFields",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.splitOut",
-            "typeVersion": 1,
-            "position": [
-                -592,
-                976
-            ],
-            "id": "e0b252e0-7a53-4bef-8e23-73594edf477b",
-            "name": "Split Out"
-        },
-        {
-            "parameters": {
-                "method": "=POST",
-                "url": "https://graph.facebook.com/v20.0/1100350699820165/messages",
-                "sendHeaders": true,
-                "headerParameters": {
-                    "parameters": [
-                        {
-                            "name": "Authorization",
-                            "value": "Bearer EAANR6oYzHecBRNZBMTiWf4RZCYnrZANT2toPMkogPHaboIC4TdgHTnVbYngXnfREzDZCdNSUm3LJqyA82QCnaTmFykUcAlRiQV2UspOi6P02hfHPoJMRGl6eLAUaAE6T9QjQMIS5KDo6qwGs3ATPUG8zzlzbZArg9JSoPOXwJyqzotGS4lPSNA0FaQTpMfQZDZD"
-                        }
-                    ]
-                },
+                "method": "POST",
+                "url": "https://webhookvm.lightbox.mx/canaco/messages/recibir",
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{ $json[\"body.contactos\"].telefono }}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"{{ $('Webhook2').item.json.body.plantilla }}\",\n    \"language\": {\n      \"code\": \"{{ $('Webhook2').item.json.body.idioma }}\"\n    },\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": {{ JSON.stringify($('Webhook2').item.json.body.parametrosBody) }}\n      }\n    ]\n  }\n}",
+                "jsonBody": "={{ JSON.stringify($json) }}",
                 "options": {}
             },
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.4,
             "position": [
-                -400,
-                976
+                -432,
+                544
             ],
-            "id": "46ce197f-b249-4ecf-8b81-4c2a7cf70cf6",
-            "name": "HTTP Request15*"
+            "id": "220b54db-0e9c-4257-845e-3434f3ad6dc4",
+            "name": "HTTP Request"
+        },
+        {
+            "parameters": {
+                "jsCode": "const item = $input.item;\n\n// Recupera los datos originales del mensaje que se pierden despues de los nodos de descarga\nconst originalData = $('Code in JavaScript').item.json;\n\n// Restaura todos los campos originales en el JSON actual\nitem.json.telefono = originalData.telefono;\nitem.json.nombre = originalData.nombre;\nitem.json.contenido = originalData.contenido;\nitem.json.tipo = originalData.tipo;\nitem.json.metaMensajeId = originalData.metaMensajeId;\nitem.json.nombreArchivo = originalData.nombreArchivo;\nitem.json.mimeType = originalData.mimeType;\n\n// Verifica si existe algún archivo binario adjunto\nif (item.binary) {\n  const keys = Object.keys(item.binary);\n  \n  if (keys.length > 0) {\n    const fileKey = keys[0];\n    \n    // IMPORTANTE: En n8n con filesystem-v2, item.binary[fileKey].data retorna 'filesystem-v2'\n    // en vez del base64 real. Usamos getBinaryDataBuffer para leer el archivo real del disco.\n    const binaryBuffer = await this.helpers.getBinaryDataBuffer(0, fileKey);\n    item.json.base64Media = binaryBuffer.toString('base64');\n    \n    // Actualiza mimeType con el del archivo descargado si existe\n    if (item.binary[fileKey].mimeType) {\n      item.json.mimeType = item.binary[fileKey].mimeType;\n    }\n    \n    // Si el tipo viene vacío, lo extraemos del mimeType\n    if (!item.json.tipo && item.json.mimeType) {\n        item.json.tipo = item.json.mimeType.split('/')[0]; \n    }\n  } else {\n    item.json.debugError = 'No binary keys found in item.binary';\n  }\n} else {\n  item.json.debugError = 'item.binary is undefined - Download may have failed';\n}\n\nreturn item;"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -624,
+                416
+            ],
+            "name": "Binary to Base64",
+            "id": "55f57635-7e7e-4bef-b631-03ab4528401f"
+        },
+        {
+            "parameters": {
+                "url": "={{ $json.url }}",
+                "authentication": "predefinedCredentialType",
+                "nodeCredentialType": "whatsAppApi",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "User-Agent",
+                            "value": "n8n"
+                        }
+                    ]
+                },
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "file"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.4,
+            "position": [
+                -848,
+                416
+            ],
+            "id": "b5a9d553-187a-470a-85f3-e4284bba9ab4",
+            "name": "Download Binary File",
+            "credentials": {
+                "whatsAppApi": {
+                    "id": "zCBMXV3tB67SCEM4",
+                    "name": "Prueba"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "resource": "media",
+                "operation": "mediaUrlGet",
+                "mediaGetId": "={{ $json.mediaId }}"
+            },
+            "type": "n8n-nodes-base.whatsApp",
+            "typeVersion": 1.1,
+            "position": [
+                -1072,
+                416
+            ],
+            "id": "4348d785-e839-422c-beff-faf4dc761675",
+            "name": "Get Media URL",
+            "webhookId": "2db26f6a-ea14-43cd-8bd6-a1c023f97e5e",
+            "credentials": {
+                "whatsAppApi": {
+                    "id": "YWX9g1ZpOrUUy5Ob",
+                    "name": "WhatsApp account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extrae el objeto raiz del mensaje entrante\nconst value = $input.item.json;\n\n// Valida la existencia de un mensaje real\nif (!value.messages || value.messages.length === 0) return [];\n\nconst msg = value.messages[0];\nconst contact = value.contacts[0];\n\nlet tipo = msg.type;\nlet contenido = '';\nlet mediaId = null;\nlet mimeType = null;\nlet nombreArchivo = null;\n\n// Asigna el contenido dependiendo si es texto o multimedia\nif (tipo === 'text') {\n  contenido = msg.text.body;\n} else if (['image', 'audio', 'video', 'document', 'sticker', 'voice'].includes(tipo)) {\n  const mediaObj = msg[tipo];\n  mediaId = mediaObj.id;\n  mimeType = mediaObj.mime_type;\n  \n  if (tipo === 'document') {\n    nombreArchivo = mediaObj.filename;\n    contenido = mediaObj.caption || '';\n  } else {\n    contenido = mediaObj.caption || '';\n  }\n}\n\n// Retorna el payload estructurado para el CRM\nreturn {\n  json: {\n    telefono: msg.from,\n    nombre: contact.profile.name,\n    metaMensajeId: msg.id,\n    tipo: tipo,\n    contenido: contenido,\n    mediaId: mediaId,\n    mimeType: mimeType,\n    nombreArchivo: nombreArchivo\n  }\n};\n"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -1520,
+                528
+            ],
+            "id": "8a3c7aa6-864a-49d7-8a8b-a119f69c5e50",
+            "name": "Code in JavaScript"
+        },
+        {
+            "parameters": {
+                "updates": [
+                    "messages"
+                ],
+                "options": {}
+            },
+            "type": "n8n-nodes-base.whatsAppTrigger",
+            "typeVersion": 1,
+            "position": [
+                -1792,
+                528
+            ],
+            "id": "4525798b-360d-42b6-8129-06c6b278226e",
+            "name": "WhatsApp Trigger",
+            "webhookId": "b784d544-c374-4dc2-9536-f5931ff22def",
+            "credentials": {
+                "whatsAppTriggerApi": {
+                    "id": "0A25WgOu7uwv49pW",
+                    "name": "WhatsApp OAuth account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.mediaId }}",
+                            "operation": "isNotEmpty"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                -1312,
+                528
+            ],
+            "name": "IF Contiene Multimedia",
+            "id": "aa188008-9265-4c7b-b648-e9420084b764"
         }
     ],
     "connections": {
-        "Webhook2": {
+        "Binary to Base64": {
             "main": [
                 [
                     {
-                        "node": "Split Out",
+                        "node": "HTTP Request",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Split Out": {
+        "Download Binary File": {
             "main": [
                 [
                     {
-                        "node": "HTTP Request15*",
+                        "node": "Binary to Base64",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Media URL": {
+            "main": [
+                [
+                    {
+                        "node": "Download Binary File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Code in JavaScript": {
+            "main": [
+                [
+                    {
+                        "node": "IF Contiene Multimedia",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "WhatsApp Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Code in JavaScript",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF Contiene Multimedia": {
+            "main": [
+                [
+                    {
+                        "node": "Get Media URL",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "HTTP Request",
                         "type": "main",
                         "index": 0
                     }
