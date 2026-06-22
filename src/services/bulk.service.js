@@ -92,10 +92,30 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
         if (valoresVariables && valoresVariables.length > 0) {
           const parametrosMapeados = valoresVariables.map(valor => {
             let valorFinal = String(valor);
-            if (c.nombre) {
-              valorFinal = valorFinal.replace(/\{\{nombre\}\}/gi, c.nombre)
-                                     .replace(/\{\{name\}\}/gi, c.nombre);
+            
+            // Resuelve las variables dinámicas de forma independiente
+            const contactName = c.nombre ? c.nombre.trim() : '';
+            const companyName = c.empresa ? c.empresa.trim() : '';
+
+            // Fallback: Nombre o Empresa
+            let resolvedNombreOEmpresa = '';
+            if (contactName && contactName.toLowerCase() !== 'desconocido') {
+              resolvedNombreOEmpresa = contactName;
+            } else if (companyName) {
+              resolvedNombreOEmpresa = companyName;
+            } else {
+              resolvedNombreOEmpresa = contactName || 'Desconocido';
             }
+
+            const resolvedNombre = contactName || 'Desconocido';
+            const resolvedEmpresa = companyName || 'Desconocido';
+
+            valorFinal = valorFinal.replace(/\{\{nombre_o_empresa\}\}/gi, resolvedNombreOEmpresa)
+                                   .replace(/\{\{nombre\}\}/gi, resolvedNombre)
+                                   .replace(/\{\{name\}\}/gi, resolvedNombre)
+                                   .replace(/\{\{empresa\}\}/gi, resolvedEmpresa)
+                                   .replace(/\{\{company\}\}/gi, resolvedEmpresa);
+
             return {
               type: 'text',
               text: valorFinal
