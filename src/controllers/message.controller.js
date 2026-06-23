@@ -10,14 +10,14 @@ const autoreplyService = require('../services/autoreply.service');
 // Envia un mensaje individual y activa plantilla si la ventana de 24 horas esta cerrada.
 exports.enviarIndividual = async (req, res, next) => {
   try {
-    const { contactoId, contenido, tipo, base64Media, mimeType, fileName } = req.body;
+    const { contactoId, contenido, tipo, base64Media, mimeType, fileName, plantillaNombre: reqPlantillaNombre, plantillaIdioma: reqPlantillaIdioma } = req.body;
     
     const contacto = await Contacto.findById(contactoId);
     if (!contacto) return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
 
     let archivoUrl = null;
     if (base64Media && tipo !== 'text' && tipo !== 'texto') {
-      archivoUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
+      archivoUrl = await mediaService.guardarMediaBase64(base64Media, mimeType, fileName);
     }
 
     const limite24Horas = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -48,9 +48,9 @@ exports.enviarIndividual = async (req, res, next) => {
 
     if (!tieneVentanaActiva) {
       tipoFinal = 'template';
-      plantillaNombre = 'inicio_conversacion';
-      plantillaIdioma = 'es_MX';
-      textoContenido = contenidoFinal || 'Plantilla: inicio_conversacion';
+      plantillaNombre = reqPlantillaNombre || 'inicio_conversacion';
+      plantillaIdioma = reqPlantillaIdioma || 'es_MX';
+      textoContenido = contenidoFinal || `Plantilla: ${plantillaNombre}`;
     }
 
     const mensaje = await Mensaje.create({
@@ -220,10 +220,10 @@ exports.recibirMensaje = async (req, res, next) => {
       try {
         if (base64Media) {
           // Si n8n ya descargó el archivo y lo envió como base64
-          archivoUrlLocal = await mediaService.guardarMediaBase64(base64Media, mimeType || 'application/octet-stream');
+          archivoUrlLocal = await mediaService.guardarMediaBase64(base64Media, mimeType || 'application/octet-stream', nombreArchivo);
         } else if (mediaUrl) {
           // Si n8n solo mandó la URL, descargamos de Meta
-          archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'application/octet-stream');
+          archivoUrlLocal = await mediaService.descargarMediaDeMeta(mediaUrl, mimeType || 'application/octet-stream', nombreArchivo);
         }
         
         if (!textoContenido && archivoUrlLocal) {
@@ -298,11 +298,11 @@ exports.obtenerConversacion = async (req, res, next) => {
  */
 exports.subirMedia = async (req, res, next) => {
   try {
-    const { base64Media, mimeType } = req.body;
+    const { base64Media, mimeType, fileName } = req.body;
     if (!base64Media || !mimeType) {
       return res.status(400).json({ estado: 'error', mensaje: 'base64Media y mimeType son requeridos' });
     }
-    const fileUrl = await mediaService.guardarMediaBase64(base64Media, mimeType);
+    const fileUrl = await mediaService.guardarMediaBase64(base64Media, mimeType, fileName);
     res.status(200).json({ estado: 'exito', datos: { url: fileUrl } });
   } catch (error) {
     next(error);

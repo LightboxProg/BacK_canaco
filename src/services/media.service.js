@@ -14,13 +14,54 @@ const s3Client = new S3Client({
   }
 });
 
-/**
- * Descarga un archivo multimedia desde la URL autenticada de Meta y lo sube directamente a AWS S3
- * @param {string} url - URL de Meta para descargar el archivo.
- * @param {string} mimeType - El mime type para saber qué extensión darle (ej. image/jpeg)
- * @returns {Promise<string>} - Retorna la URL pública de S3
- */
-exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
+// Obtiene la extensión correcta a partir del mimeType y nombre de archivo original
+const obtenerExtension = (mimeType, originalName) => {
+  if (originalName) {
+    const partes = originalName.split('.');
+    if (partes.length > 1) {
+      const extOriginal = partes.pop().toLowerCase();
+      if (extOriginal && extOriginal.length <= 5) {
+        return extOriginal;
+      }
+    }
+  }
+  if (!mimeType) return 'bin';
+  const mapaMime = {
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/msword': 'doc',
+    'application/pdf': 'pdf',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'text/plain': 'txt',
+    'text/html': 'html',
+    'text/csv': 'csv',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'video/mp4': 'mp4',
+    'video/3gpp': '3gp',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/ogg': 'ogg',
+    'audio/wav': 'wav',
+    'audio/aac': 'aac',
+    'audio/amr': 'amr'
+  };
+  if (mapaMime[mimeType]) return mapaMime[mimeType];
+  const partesMime = mimeType.split('/');
+  if (partesMime.length > 1) {
+    const extSencilla = partesMime[1];
+    return extSencilla.includes(';') ? extSencilla.split(';')[0] : extSencilla;
+  }
+  return 'bin';
+};
+
+// Descarga un archivo multimedia de Meta y lo sube directamente a AWS S3
+exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType, originalName = null) => {
   let downloadUrl = mediaUrlOrId;
 
   // Si no es una URL completa (es un ID de Meta), obtenemos la URL real primero
@@ -40,7 +81,7 @@ exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
 
   return new Promise((resolve, reject) => {
     let finalMimeType = mimeType;
-    let ext = mimeType.split('/')[1] || 'bin';
+    let ext = obtenerExtension(mimeType, originalName);
 
     // Generar un nombre aleatorio para el archivo en S3
     const filename = `whatsapp_media/${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
@@ -89,18 +130,13 @@ exports.descargarMediaDeMeta = async (mediaUrlOrId, mimeType) => {
   });
 };
 
-/**
- * Guarda un archivo en formato Base64 directamente a AWS S3
- * @param {string} base64Data - Datos del archivo en formato base64
- * @param {string} mimeType - El mime type para saber qué extensión darle (ej. image/jpeg)
- * @returns {Promise<string>} - Retorna la URL pública de S3
- */
-exports.guardarMediaBase64 = async (base64Data, mimeType) => {
+// Guarda un archivo en formato Base64 directamente a AWS S3
+exports.guardarMediaBase64 = async (base64Data, mimeType, originalName = null) => {
   return new Promise(async (resolve, reject) => {
     try {
       let buffer = Buffer.from(base64Data, 'base64');
       let finalMimeType = mimeType;
-      let ext = mimeType.split('/')[1] || 'bin';
+      let ext = obtenerExtension(mimeType, originalName);
 
       const filename = `whatsapp_media/${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
 
