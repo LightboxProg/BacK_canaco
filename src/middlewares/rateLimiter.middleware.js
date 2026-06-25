@@ -1,26 +1,38 @@
 const rateLimit = require('express-rate-limit');
 
+// Obtiene la IP real del cliente considerando los encabezados del proxy.
+const getClientIp = (req) => {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  return req.headers['x-real-ip'] || req.ip || req.socket.remoteAddress || '127.0.0.1';
+};
+
 exports.globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 5000,
+  keyGenerator: getClientIp,
   message: { status: 'error', message: 'Too many requests from this IP' }
 });
 
 exports.authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
+  keyGenerator: getClientIp,
   message: { status: 'error', message: 'Too many login attempts' }
 });
 
 exports.bulkLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 50, // Increased to 10 requests per 5 minutes for testing
-  keyGenerator: (req) => req.user ? req.user._id.toString() : 'anonymous',
+  max: 100,
+  keyGenerator: (req) => req.user ? req.user._id.toString() : getClientIp(req),
   message: { status: 'error', message: 'Too many bulk messages allowed per 5 minutes' }
 });
 
 exports.internalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 500, // 500 req/min for n8n
+  max: 1000,
+  keyGenerator: getClientIp,
   message: { status: 'error', message: 'Too many internal requests' }
 });
