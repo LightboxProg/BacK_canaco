@@ -10,6 +10,7 @@ const esquemaContacto = new mongoose.Schema({
   nombre: { type: String },
   propietario: { type: mongoose.Schema.ObjectId, ref: 'Usuario' },
   region: { type: String },
+  genero: { type: String },
 
   // Campos CANACO
   empresa: { type: String },

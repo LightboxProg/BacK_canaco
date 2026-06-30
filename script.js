@@ -132,6 +132,7 @@ async function mapRowToContact(row, propietarioId) {
         siem: parseBoolean(row['SIEM'] || row['siem']),
         sucursal: parseBoolean(row['SUCURSALES'] || row['sucursales'] || row['Sucursales']),
         vigente: parseBoolean(row['VIGENTE'] || row['vigente']),
+        genero: row['Género'] || row['género'] || row['Genero'] || row['genero'] || '',
         propietario: propietarioId,
         giro: girosIds,
         grupos: []
