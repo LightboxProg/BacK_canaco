@@ -91,9 +91,9 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
         // 2. Cuerpo (con variables personalizadas)
         if (valoresVariables && valoresVariables.length > 0) {
           const parametrosMapeados = valoresVariables.map(valor => {
-            let valorFinal = String(valor);
+            let valorFinal = String(valor || '').trim();
             
-            // Resuelve las variables dinámicas de forma independiente
+            // Resuelve las variables dinamicas de forma independiente
             const contactName = c.nombre ? c.nombre.trim() : '';
             const companyName = c.empresa ? c.empresa.trim() : '';
 
@@ -115,6 +115,11 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
                                    .replace(/\{\{name\}\}/gi, resolvedNombre)
                                    .replace(/\{\{empresa\}\}/gi, resolvedEmpresa)
                                    .replace(/\{\{company\}\}/gi, resolvedEmpresa);
+
+            // Asegura que no se envíe un texto vacío para evitar fallos en Meta API
+            if (!valorFinal) {
+              valorFinal = ' ';
+            }
 
             return {
               type: 'text',

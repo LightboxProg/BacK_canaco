@@ -10,7 +10,7 @@ const autoreplyService = require('../services/autoreply.service');
 // Envia un mensaje individual y activa plantilla si la ventana de 24 horas esta cerrada.
 exports.enviarIndividual = async (req, res, next) => {
   try {
-    const { contactoId, contenido, tipo, base64Media, mimeType, fileName, plantillaNombre: reqPlantillaNombre, plantillaIdioma: reqPlantillaIdioma } = req.body;
+    const { contactoId, contenido, tipo, base64Media, mimeType, fileName, plantillaNombre: reqPlantillaNombre, plantillaIdioma: reqPlantillaIdioma, componentes } = req.body;
     
     const contacto = await Contacto.findById(contactoId);
     if (!contacto) return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
@@ -92,7 +92,8 @@ exports.enviarIndividual = async (req, res, next) => {
       idioma: plantillaIdioma,
       mensajeId: mensaje._id,
       mediaUrl: tipoFinal === 'template' ? null : archivoUrl,
-      fileName
+      fileName,
+      componentes
     }).then(() => {
       Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'enviado' }).exec()
         .then((updatedMsg) => {
