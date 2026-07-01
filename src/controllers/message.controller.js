@@ -48,7 +48,7 @@ exports.enviarIndividual = async (req, res, next) => {
 
     if (!tieneVentanaActiva) {
       tipoFinal = 'template';
-      plantillaNombre = reqPlantillaNombre || 'inicio_conversacion';
+      plantillaNombre = reqPlantillaNombre || 'canaco';
       plantillaIdioma = reqPlantillaIdioma || 'es_MX';
       textoContenido = contenidoFinal || `Plantilla: ${plantillaNombre}`;
     }
