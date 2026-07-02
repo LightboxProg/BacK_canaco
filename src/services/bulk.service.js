@@ -15,7 +15,7 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
 
     // 1. Juntar los ID de contactos individuales
     if (trabajo.contactosIds && trabajo.contactosIds.length > 0) {
-      contactosAProcesar = [...trabajo.contactosIds];
+      contactosAProcesar = trabajo.contactosIds.map(id => id.toString());
     }
 
     // 2. Extraer contactos de cada grupo (evitando que se dupliquen)

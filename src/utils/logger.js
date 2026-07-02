@@ -9,16 +9,14 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'messaging-backend' },
   transports: [
-    new winston.transports.Console(
-      process.env.NODE_ENV !== 'production'
-        ? {
-            format: winston.format.combine(
-              winston.format.colorize(),
-              winston.format.simple()
-            )
-          }
-        : {}
-    )
+    new winston.transports.Console({
+      format: process.env.NODE_ENV === 'development'
+        ? winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+          )
+        : winston.format.json()
+    })
   ]
 });
 

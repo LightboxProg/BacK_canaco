@@ -3,7 +3,7 @@ const entorno = require('../config/environment');
 const registrador = require('../utils/logger');
 
 const n8nClient = axios.create({
-  timeout: 10000,
+  timeout: 90000,
   headers: { 'Content-Type': 'application/json' }
 });
 
