@@ -133,21 +133,73 @@ exports.recibirMensaje = async (req, res, next) => {
 exports.actualizarEstado = async (req, res, next) => {
   try {
     const { metaMessageId, status } = req.body;
-    
-    // 1. Buscar y actualizar el mensaje
-    const mensajeActualizado = await Mensaje.findOneAndUpdate(
-      { metaMensajeId: metaMessageId },
-      { estado: status },
-      { returnDocument: 'after' } // Retorna el documento actualizado
+    const fs = require('fs');
+    const path = require('path');
+    const logPath = path.join(__dirname, '../../debug_log.txt');
+    fs.appendFileSync(logPath, `[ESTADO] ${new Date().toISOString()} Recibido: ${JSON.stringify({ metaMessageId, status })}\n`);
+
+    const precedencia = { pendiente: 0, enviado: 1, entregado: 2, leido: 3, fallido: 4 };
+
+    const mensaje = await Mensaje.findOne({ metaMensajeId: metaMessageId });
+    fs.appendFileSync(logPath, `[ESTADO] Mensaje encontrado: ${mensaje ? mensaje._id : 'NO ENCONTRADO'}\n`);
+
+    if (!mensaje) {
+      return res.status(200).json({ estado: 'exito', mensaje: 'Mensaje no encontrado' });
+    }
+
+    const nivelActual = precedencia[mensaje.estado] ?? -1;
+    const nivelNuevo = precedencia[status] ?? -1;
+
+    // No hacer downgrade de estado (excepto fallido que siempre aplica)
+    if (nivelNuevo <= nivelActual && status !== 'fallido') {
+      fs.appendFileSync(logPath, `[ESTADO] Ignorado (downgrade/igual): actual=${mensaje.estado}, nuevo=${status}\n`);
+      return res.status(200).json({ estado: 'exito', mensaje: 'Estado ya superado' });
+    }
+
+    mensaje.estado = status;
+    await mensaje.save();
+    fs.appendFileSync(logPath, `[ESTADO] Guardado con éxito: ${status}\n`);
+
+    try {
+      obtenerIO().emit('estado_mensaje', { mensajeId: mensaje._id, estado: status });
+      fs.appendFileSync(logPath, `[ESTADO] Socket emitido estado_mensaje para id=${mensaje._id}\n`);
+    } catch (e) {
+      fs.appendFileSync(logPath, `[ESTADO] Error emitiendo socket: ${e.message}\n`);
+    }
+
+    res.status(200).json({ estado: 'exito' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Vincula el metaMensajeId de Meta con un mensaje existente en la BD
+exports.vincularMetaId = async (req, res, next) => {
+  try {
+    const { mensajeIdCRM, metaMensajeId } = req.body;
+    const fs = require('fs');
+    const path = require('path');
+    const logPath = path.join(__dirname, '../../debug_log.txt');
+    fs.appendFileSync(logPath, `[VINCULAR] ${new Date().toISOString()} Recibido: ${JSON.stringify({ mensajeIdCRM, metaMensajeId })}\n`);
+
+    if (!mensajeIdCRM || !metaMensajeId) {
+      fs.appendFileSync(logPath, `[VINCULAR] ERROR: Faltan datos\n`);
+      return res.status(400).json({ estado: 'error', mensaje: 'mensajeIdCRM y metaMensajeId son requeridos' });
+    }
+
+    const mensaje = await Mensaje.findByIdAndUpdate(
+      mensajeIdCRM,
+      { metaMensajeId, estado: 'enviado' },
+      { returnDocument: 'after' }
     );
 
-    // 2. Si se actualizó correctamente, emitir evento por sockets para reflejar los "palomitas" en frontend
-    if (mensajeActualizado) {
+    if (mensaje) {
       try {
-        obtenerIO().emit('estado_mensaje', { mensajeId: mensajeActualizado._id, estado: status });
+        obtenerIO().emit('estado_mensaje', { mensajeId: mensaje._id, estado: 'enviado' });
       } catch (e) {}
     }
 
+    fs.appendFileSync(logPath, `[VINCULAR] Mensaje actualizado: ${mensaje ? mensaje._id : 'NO ENCONTRADO'}\n`);
     res.status(200).json({ estado: 'exito' });
   } catch (error) {
     next(error);

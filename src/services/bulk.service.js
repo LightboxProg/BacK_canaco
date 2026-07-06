@@ -1,5 +1,7 @@
 const BulkJob = require('../models/BulkJob');
 const Contacto = require('../models/Contact');
+const Mensaje = require('../models/Message');
+const { obtenerIO } = require('../config/socket');
 const n8nService = require('./n8n.service');
 const registrador = require('../utils/logger');
 
@@ -73,18 +75,30 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
       if (trabajo.componentesPlantilla) {
         const { urlImagen, valoresVariables } = trabajo.componentesPlantilla;
 
-        // 1. Cabecera (Imagen)
+        // 1. Cabecera (Imagen / Documento / Video)
         if (urlImagen) {
+          const { headerTipo, fileName } = trabajo.componentesPlantilla;
+          const tipoParametro = (headerTipo || 'IMAGE').toLowerCase();
+          const parametro = { type: tipoParametro };
+
+          if (tipoParametro === 'document') {
+            parametro.document = {
+              link: urlImagen,
+              filename: fileName || 'documento'
+            };
+          } else if (tipoParametro === 'video') {
+            parametro.video = {
+              link: urlImagen
+            };
+          } else {
+            parametro.image = {
+              link: urlImagen
+            };
+          }
+
           componentes.push({
             type: 'header',
-            parameters: [
-              {
-                type: 'image',
-                image: {
-                  link: urlImagen
-                }
-              }
-            ]
+            parameters: [parametro]
           });
         }
 
@@ -116,6 +130,41 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
                                    .replace(/\{\{empresa\}\}/gi, resolvedEmpresa)
                                    .replace(/\{\{company\}\}/gi, resolvedEmpresa);
 
+            // Resolución de género
+            const esM = c.genero === 'Masculino';
+            const esF = c.genero === 'Femenino';
+            const esSoloEmpresa = !contactName || contactName.toLowerCase() === 'desconocido';
+
+            if (esSoloEmpresa) {
+              valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimado(a)')
+                                     .replace(/Estimado\(a\)/gi, 'Estimado(a)')
+                                     .replace(/Bienvenido\/a/gi, 'Bienvenido(a)')
+                                     .replace(/Bienvenido\(a\)/gi, 'Bienvenido(a)')
+                                     .replace(/el\/la/gi, 'el/la')
+                                     .replace(/un\/a/gi, 'un/a');
+            } else if (esM) {
+              valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimado')
+                                     .replace(/Estimado\(a\)/gi, 'Estimado')
+                                     .replace(/Bienvenido\/a/gi, 'Bienvenido')
+                                     .replace(/Bienvenido\(a\)/gi, 'Bienvenido')
+                                     .replace(/el\/la/gi, 'el')
+                                     .replace(/un\/a/gi, 'un');
+            } else if (esF) {
+              valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimada')
+                                     .replace(/Estimado\(a\)/gi, 'Estimada')
+                                     .replace(/Bienvenido\/a/gi, 'Bienvenida')
+                                     .replace(/Bienvenido\(a\)/gi, 'Bienvenida')
+                                     .replace(/el\/la/gi, 'la')
+                                     .replace(/un\/a/gi, 'una');
+            } else {
+              valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimado(a)')
+                                     .replace(/Estimado\(a\)/gi, 'Estimado(a)')
+                                     .replace(/Bienvenido\/a/gi, 'Bienvenido(a)')
+                                     .replace(/Bienvenido\(a\)/gi, 'Bienvenido(a)')
+                                     .replace(/el\/la/gi, 'el/la')
+                                     .replace(/un\/a/gi, 'un/a');
+            }
+
             // Asegura que no se envíe un texto vacío para evitar fallos en Meta API
             if (!valorFinal) {
               valorFinal = ' ';
@@ -133,6 +182,92 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
           });
         }
       }
+
+      // Reconstruye el texto completo del mensaje resuelto para guardar en el historial
+      let textoMensaje = (trabajo.contenido || '').replace(/<\/?b>/gi, '');
+      const contactName = c.nombre ? c.nombre.trim() : '';
+      const companyName = c.empresa ? c.empresa.trim() : '';
+
+      let resolvedNombreOEmpresa = '';
+      if (contactName && contactName.toLowerCase() !== 'desconocido') {
+        resolvedNombreOEmpresa = contactName;
+      } else if (companyName) {
+        resolvedNombreOEmpresa = companyName;
+      } else {
+        resolvedNombreOEmpresa = contactName || 'Desconocido';
+      }
+
+      const resolvedNombre = contactName || 'Desconocido';
+      const resolvedEmpresa = companyName || 'Desconocido';
+
+      if (trabajo.componentesPlantilla && trabajo.componentesPlantilla.valoresVariables) {
+        trabajo.componentesPlantilla.valoresVariables.forEach((valor, idx) => {
+          let valorFinal = String(valor || '').trim();
+          valorFinal = valorFinal.replace(/\{\{nombre_o_empresa\}\}/gi, resolvedNombreOEmpresa)
+                                 .replace(/\{\{nombre\}\}/gi, resolvedNombre)
+                                 .replace(/\{\{name\}\}/gi, resolvedNombre)
+                                 .replace(/\{\{empresa\}\}/gi, resolvedEmpresa)
+                                 .replace(/\{\{company\}\}/gi, resolvedEmpresa);
+
+          const esM = c.genero === 'Masculino';
+          const esF = c.genero === 'Femenino';
+          const esSoloEmpresa = !contactName || contactName.toLowerCase() === 'desconocido';
+
+          if (esSoloEmpresa) {
+            valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimado(a)')
+                                   .replace(/Estimado\(a\)/gi, 'Estimado(a)')
+                                   .replace(/Bienvenido\/a/gi, 'Bienvenido(a)')
+                                   .replace(/Bienvenido\(a\)/gi, 'Bienvenido(a)')
+                                   .replace(/el\/la/gi, 'el/la')
+                                   .replace(/un\/a/gi, 'un/a')
+                                   .replace(/o\/a/gi, 'o/a');
+          } else if (esM) {
+            valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimado')
+                                   .replace(/Estimado\(a\)/gi, 'Estimado')
+                                   .replace(/Bienvenido\/a/gi, 'Bienvenido')
+                                   .replace(/Bienvenido\(a\)/gi, 'Bienvenido')
+                                   .replace(/el\/la/gi, 'el')
+                                   .replace(/un\/a/gi, 'un')
+                                   .replace(/o\/a/gi, 'o');
+          } else if (esF) {
+            valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimada')
+                                   .replace(/Estimado\(a\)/gi, 'Estimada')
+                                   .replace(/Bienvenido\/a/gi, 'Bienvenida')
+                                   .replace(/Bienvenido\(a\)/gi, 'Bienvenida')
+                                   .replace(/el\/la/gi, 'la')
+                                   .replace(/un\/a/gi, 'una')
+                                   .replace(/o\/a/gi, 'a');
+          } else {
+            valorFinal = valorFinal.replace(/Estimado\/a/gi, 'Estimado(a)')
+                                   .replace(/Estimado\(a\)/gi, 'Estimado(a)')
+                                   .replace(/Bienvenido\/a/gi, 'Bienvenido(a)')
+                                   .replace(/Bienvenido\(a\)/gi, 'Bienvenido(a)')
+                                   .replace(/el\/la/gi, 'el/la')
+                                   .replace(/un\/a/gi, 'un/a')
+                                   .replace(/o\/a/gi, 'o/a');
+          }
+
+          textoMensaje = textoMensaje.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), valorFinal);
+        });
+      }
+
+      // Crea el registro del mensaje de forma asincrona en la base de datos
+      Mensaje.create({
+        contacto: c._id,
+        remitenteUsuario: trabajo.creadoPor,
+        contenido: textoMensaje || `Plantilla: ${trabajo.nombrePlantilla}`,
+        direccion: 'saliente',
+        estado: 'enviado',
+        tipo: 'template',
+        archivoUrl: trabajo.componentesPlantilla?.urlImagen || undefined
+      }).then(async (msgCreado) => {
+        try {
+          const msgPoblado = await Mensaje.findById(msgCreado._id)
+            .populate('contacto', 'nombre telefono region')
+            .populate('remitenteUsuario', 'correo rol nombre');
+          obtenerIO().emit('nuevo_mensaje', { mensaje: msgPoblado });
+        } catch (se) {}
+      }).catch(() => {});
 
       contactosFormateados.push({
         telefono: telefonoFormateado,

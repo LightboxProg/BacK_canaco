@@ -95,7 +95,7 @@ exports.enviarIndividual = async (req, res, next) => {
       fileName,
       componentes
     }).then(() => {
-      Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'enviado' }).exec()
+      Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'enviado' }, { returnDocument: 'after' }).exec()
         .then((updatedMsg) => {
           if (updatedMsg) {
             try {
@@ -333,6 +333,72 @@ exports.vaciarConversacion = async (req, res, next) => {
     } catch (e) {}
 
     res.status(200).json({ estado: 'exito', mensaje: 'Conversación vaciada correctamente' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Reintenta enviar un mensaje que falló previamente.
+ */
+exports.reintentarMensaje = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const mensaje = await Mensaje.findById(id).populate('contacto');
+    if (!mensaje) {
+      return res.status(404).json({ estado: 'error', mensaje: 'Mensaje no encontrado' });
+    }
+
+    if (mensaje.direccion !== 'saliente' || mensaje.estado !== 'fallido') {
+      return res.status(400).json({ estado: 'error', mensaje: 'Solo se pueden reintentar mensajes salientes fallidos' });
+    }
+
+    mensaje.estado = 'pendiente';
+    await mensaje.save();
+
+    try {
+      obtenerIO().emit('estado_mensaje', { mensajeId: mensaje._id, estado: 'pendiente' });
+    } catch (e) {}
+
+    res.status(200).json({ estado: 'exito', datos: mensaje });
+
+    const contacto = mensaje.contacto;
+    let telefonoFormateado = contacto.telefono || contacto.identificadorMeta;
+    if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
+      telefonoFormateado = '52' + telefonoFormateado.substring(3);
+    }
+
+    let tipoN8n = mensaje.tipo;
+    if (tipoN8n === 'template' || tipoN8n === 'texto') {
+      tipoN8n = 'text';
+    }
+
+    n8nService.enviarMensajeIndividual({
+      telefono: telefonoFormateado,
+      mensaje: mensaje.contenido,
+      contenido: mensaje.contenido,
+      tipo: tipoN8n,
+      mensajeId: mensaje._id,
+      mediaUrl: mensaje.archivoUrl,
+      fileName: mensaje.nombreArchivo
+    }).then(() => {
+      Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'enviado' }, { returnDocument: 'after' }).exec()
+        .then((updatedMsg) => {
+          if (updatedMsg) {
+            try {
+              obtenerIO().emit('estado_mensaje', { mensajeId: updatedMsg._id, estado: 'enviado' });
+            } catch (se) {}
+          }
+        }).catch(() => {});
+    }).catch(async (err) => {
+      console.error(`Error al reintentar mensaje a n8n para ${contacto.telefono}:`, err.message);
+      try {
+        const mensajeFallido = await Mensaje.findByIdAndUpdate(mensaje._id, { estado: 'fallido' }, { returnDocument: 'after' });
+        if (mensajeFallido) {
+          obtenerIO().emit('estado_mensaje', { mensajeId: mensajeFallido._id, estado: 'fallido' });
+        }
+      } catch (dbErr) {}
+    });
   } catch (error) {
     next(error);
   }
