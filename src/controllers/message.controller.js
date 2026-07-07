@@ -46,7 +46,7 @@ exports.enviarIndividual = async (req, res, next) => {
       textoContenido = `${iconos[tipo] || '📎 Archivo'} enviado`;
     }
 
-    if (!tieneVentanaActiva) {
+    if (tipo === 'plantilla' || tipo === 'template' || !tieneVentanaActiva) {
       tipoFinal = 'template';
       plantillaNombre = reqPlantillaNombre || 'canaco';
       plantillaIdioma = reqPlantillaIdioma || 'es_MX';

@@ -11,10 +11,10 @@ async function check() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Conectado a MongoDB');
 
-    const mensajes = await Mensaje.find({}).sort({ createdAt: -1 }).limit(10);
-    console.log('Últimos 10 mensajes:');
+    const mensajes = await Mensaje.find({ tipo: 'button' }).sort({ createdAt: -1 }).limit(10);
+    console.log('Últimos 10 mensajes tipo button:');
     mensajes.forEach(m => {
-      console.log(`ID: ${m._id} | MetaID: ${m.metaMensajeId} | Estado: ${m.estado} | Dir: ${m.direccion} | Contenido: ${m.contenido}`);
+      console.log(`ID: ${m._id} | Dir: ${m.direccion} | Estado: ${m.estado} | Contenido: "${m.contenido}"`);
     });
   } catch (err) {
     console.error(err);
