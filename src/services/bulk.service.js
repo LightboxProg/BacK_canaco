@@ -281,15 +281,41 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
     trabajo.totalContactos = contactosFormateados.length;
     await trabajo.save();
 
-    // 6. Llamar al webhook de n8n pasandole los objetos formateados
-    await n8nService.enviarMensajesMasivos({
-      jobId: trabajo._id,
-      plantilla: trabajo.nombrePlantilla,
-      idioma: trabajo.idiomaPlantilla || 'es_MX',
-      contactos: contactosFormateados
-    });
+    // 6. Enviar en lotes para evitar timeout de axios y rate limiting de Meta
+    const TAMANO_LOTE = 50;
+    const PAUSA_ENTRE_LOTES_MS = 3000;
+    let enviados = 0;
+    let fallidos = 0;
 
-    registrador.info(`Trabajo masivo ${trabajo._id} iniciado en n8n con ${contactosFormateados.length} destinatarios únicos`);
+    for (let i = 0; i < contactosFormateados.length; i += TAMANO_LOTE) {
+      const lote = contactosFormateados.slice(i, i + TAMANO_LOTE);
+      const numeroLote = Math.floor(i / TAMANO_LOTE) + 1;
+      const totalLotes = Math.ceil(contactosFormateados.length / TAMANO_LOTE);
+
+      try {
+        await n8nService.enviarMensajesMasivos({
+          jobId: trabajo._id,
+          plantilla: trabajo.nombrePlantilla,
+          idioma: trabajo.idiomaPlantilla || 'es_MX',
+          contactos: lote
+        });
+        enviados += lote.length;
+        registrador.info(`Lote ${numeroLote}/${totalLotes} enviado (${lote.length} contactos)`);
+      } catch (error) {
+        fallidos += lote.length;
+        registrador.error(`Lote ${numeroLote}/${totalLotes} falló: ${error.message}`);
+      }
+
+      // Pausa entre lotes para no saturar Meta API
+      if (i + TAMANO_LOTE < contactosFormateados.length) {
+        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
+      }
+    }
+
+    const estadoFinal = fallidos === 0 ? 'completado' : (enviados === 0 ? 'fallido' : 'completado');
+    await BulkJob.findByIdAndUpdate(idTrabajo, { estado: estadoFinal });
+
+    registrador.info(`Trabajo masivo ${trabajo._id} finalizado: ${enviados} enviados, ${fallidos} fallidos de ${contactosFormateados.length} total`);
 
   } catch (error) {
     registrador.error(`Error procesando trabajo masivo: ${error.message}`);
