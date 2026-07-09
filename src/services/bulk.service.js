@@ -59,17 +59,19 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
     const contactosFormateados = [];
 
     for (const c of contactos) {
-      let telefonoFormateado = c.telefono || c.identificadorMeta;
-      if (!telefonoFormateado) continue;
+      let telefonoReal = c.telefono || c.identificadorMeta;
+      if (!telefonoReal) continue;
 
-      if (telefonoFormateado.startsWith('521')) {
-        telefonoFormateado = '52' + telefonoFormateado.substring(3);
-      }
+      // Extraer el numero base (sin 52 ni 521)
+      let base = telefonoReal.replace(/\D/g, '');
+      if (base.startsWith('521') && base.length === 13) base = base.substring(3);
+      else if (base.startsWith('52') && base.length === 12) base = base.substring(2);
 
-      if (telefonosVistos.has(telefonoFormateado)) {
+      // Agregamos a la lista de telefonos unicos para el conteo oficial
+      if (telefonosVistos.has(base)) {
         continue;
       }
-      telefonosVistos.add(telefonoFormateado);
+      telefonosVistos.add(base);
 
       const componentes = [];
       if (trabajo.componentesPlantilla) {
@@ -270,7 +272,9 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
       }).catch(() => {});
 
       contactosFormateados.push({
-        telefono: telefonoFormateado,
+        _id: c._id,
+        base: base,
+        telefono: c.telefono,
         nombre: c.nombre,
         componentes: componentes
       });

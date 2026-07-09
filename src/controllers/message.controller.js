@@ -163,15 +163,12 @@ exports.recibirMensaje = async (req, res, next) => {
     }
 
     const telLimpio = telefono.replace(/\D/g, '');
-    let identificadorMeta = telLimpio;
+    let identificadorMeta = telLimpio; // Preservar el wa_id exacto que uso Meta
     let telefonoWhatsapp = telLimpio;
 
+    // Estandarizar telefonoWhatsapp a 52 para que haga match con la BD
     if (telLimpio.startsWith('521') && telLimpio.length === 13) {
-      identificadorMeta = telLimpio;
       telefonoWhatsapp = '52' + telLimpio.substring(3);
-    } else if (telLimpio.startsWith('52') && telLimpio.length === 12) {
-      identificadorMeta = '521' + telLimpio.substring(2);
-      telefonoWhatsapp = telLimpio;
     }
 
     // 1. Buscar o crear el contacto buscando por ambos identificadores

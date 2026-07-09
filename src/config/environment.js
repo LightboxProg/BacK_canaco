@@ -9,6 +9,7 @@ const envSchema = z.object({
   N8N_MANDAR_MENSAJE: z.string().url(),
   WABA_ID: z.string(),
   META_TOKEN: z.string(),
+  META_PHONE_NUMBER_ID: z.string().optional(),
   JWT_SECRET: z.string().min(32).default('change_this_super_secret_key_min_32_chars_fallback'),
   ALLOWED_ORIGINS: z.string().default('http://localhost:4200'),
   INTERNAL_API_KEY: z.string().default('change_this_internal_key_min_32_chars_fallback'),

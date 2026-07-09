@@ -32,16 +32,16 @@ const esquemaContacto = new mongoose.Schema({
 esquemaContacto.pre('save', function() {
   if (this.telefono) {
     const telLimpio = this.telefono.replace(/\D/g, '');
+    
+    // Normalizar solo el campo telefono a 52 para estandarizar la base de datos
     if (telLimpio.startsWith('521') && telLimpio.length === 13) {
-      const base = telLimpio.substring(3);
-      this.telefono = '52' + base;
-      this.identificadorMeta = '521' + base;
-    } else if (telLimpio.startsWith('52') && telLimpio.length === 12) {
-      const base = telLimpio.substring(2);
-      this.telefono = '52' + base;
-      this.identificadorMeta = '521' + base;
+      this.telefono = '52' + telLimpio.substring(3);
     } else {
       this.telefono = telLimpio;
+    }
+
+    // Preservar el identificadorMeta original (wa_id). Si no existe, usar el telefono.
+    if (!this.identificadorMeta) {
       this.identificadorMeta = telLimpio;
     }
   }
