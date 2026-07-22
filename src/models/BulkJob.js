@@ -5,12 +5,15 @@ const mongoose = require('mongoose');
  */
 const esquemaTrabajoMasivo = new mongoose.Schema({
   creadoPor: { type: mongoose.Schema.ObjectId, ref: 'Usuario', required: true },
-  estado: { type: String, enum: ['pendiente', 'ejecutando', 'completado', 'fallido', 'cancelado'], default: 'pendiente' },
+  estado: { type: String, enum: ['pendiente', 'ejecutando', 'completado', 'completado_parcial', 'fallido', 'cancelado'], default: 'pendiente' },
   contenido: { type: String, required: true },
   nombrePlantilla: { type: String, required: true },
   idiomaPlantilla: { type: String, default: 'es_MX' },
   componentesPlantilla: { type: mongoose.Schema.Types.Mixed },
   totalContactos: { type: Number, default: 0 },
+  enviados: { type: Number, default: 0 },
+  fallidos: { type: Number, default: 0 },
+  saltados: { type: Number, default: 0 },
   contactosIds: [{ type: mongoose.Schema.ObjectId, ref: 'Contacto' }],
   gruposIds: [{ type: mongoose.Schema.ObjectId, ref: 'Grupo' }],
   girosIds: [{ type: mongoose.Schema.ObjectId, ref: 'Giro' }]

@@ -43,9 +43,9 @@ exports.enviarMensajeIndividual = async (datos) => {
  * @param {Object} datos - Payload con la lista de teléfonos, plantilla, y configuraciones.
  */
 exports.enviarMensajesMasivos = async (datos) => {
-  // Adjuntamos las credenciales directamente en el payload según tu requerimiento
+  // Sin reintentos: el bulk.service maneja errores por lote y los reintentos causan envios duplicados
   datos.wabaId = entorno.WABA_ID;
   datos.metaToken = entorno.META_TOKEN;
   
-  return conReintento(() => n8nClient.post(entorno.WEBHOOK_MASIVOS_N8N, datos));
+  return n8nClient.post(entorno.WEBHOOK_MASIVOS_N8N, datos);
 };

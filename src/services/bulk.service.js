@@ -254,29 +254,33 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
       }
 
       // Crea el registro del mensaje de forma asincrona en la base de datos
-      Mensaje.create({
-        contacto: c._id,
-        remitenteUsuario: trabajo.creadoPor,
-        contenido: textoMensaje || `Plantilla: ${trabajo.nombrePlantilla}`,
-        direccion: 'saliente',
-        estado: 'enviado',
-        tipo: 'template',
-        archivoUrl: trabajo.componentesPlantilla?.urlImagen || undefined
-      }).then(async (msgCreado) => {
-        try {
-          const msgPoblado = await Mensaje.findById(msgCreado._id)
-            .populate('contacto', 'nombre telefono region')
-            .populate('remitenteUsuario', 'correo rol nombre');
-          obtenerIO().emit('nuevo_mensaje', { mensaje: msgPoblado });
-        } catch (se) {}
-      }).catch(() => {});
+      let msgCreado = null;
+      try {
+        msgCreado = await Mensaje.create({
+          contacto: c._id,
+          remitenteUsuario: trabajo.creadoPor,
+          contenido: textoMensaje || `Plantilla: ${trabajo.nombrePlantilla}`,
+          direccion: 'saliente',
+          estado: 'pendiente', // "Enviando..."
+          tipo: 'template',
+          archivoUrl: trabajo.componentesPlantilla?.urlImagen || undefined
+        });
+        
+        const msgPoblado = await Mensaje.findById(msgCreado._id)
+          .populate('contacto', 'nombre telefono region')
+          .populate('remitenteUsuario', 'correo rol nombre');
+        obtenerIO().emit('nuevo_mensaje', { mensaje: msgPoblado });
+      } catch (err) {
+        registrador.error(`Error creando mensaje en BD para ${c.telefono}:`, err);
+      }
 
       contactosFormateados.push({
         _id: c._id,
         base: base,
         telefono: c.telefono,
         nombre: c.nombre,
-        componentes: componentes
+        componentes: componentes,
+        mensajeId: msgCreado ? msgCreado._id : null
       });
     }
 
@@ -286,10 +290,13 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
     await trabajo.save();
 
     // 6. Enviar en lotes para evitar timeout de axios y rate limiting de Meta
-    const TAMANO_LOTE = 50;
-    const PAUSA_ENTRE_LOTES_MS = 3000;
+    const TAMANO_LOTE = 20; // Reducido de 50 a 20
+    let pausaEntreLotesMs = 5000; // Incrementado de 3s a 5s
+    const MAX_PAUSA_MS = 60000;
+    
     let enviados = 0;
     let fallidos = 0;
+    let saltados = 0;
 
     for (let i = 0; i < contactosFormateados.length; i += TAMANO_LOTE) {
       const lote = contactosFormateados.slice(i, i + TAMANO_LOTE);
@@ -297,29 +304,90 @@ exports.procesarTrabajoMasivo = async (idTrabajo) => {
       const totalLotes = Math.ceil(contactosFormateados.length / TAMANO_LOTE);
 
       try {
-        await n8nService.enviarMensajesMasivos({
+        const respuesta = await n8nService.enviarMensajesMasivos({
           jobId: trabajo._id,
           plantilla: trabajo.nombrePlantilla,
           idioma: trabajo.idiomaPlantilla || 'es_MX',
           contactos: lote
         });
-        enviados += lote.length;
-        registrador.info(`Lote ${numeroLote}/${totalLotes} enviado (${lote.length} contactos)`);
+        
+        // Check for 131049 errors in the response (n8n lastNode mode returns array of executions)
+        const data = respuesta?.data;
+        let errores131049 = false;
+        
+        if (Array.isArray(data)) {
+           // Promesas para actualizar el estado de los mensajes
+           const promesasActualizacion = [];
+           
+           data.forEach((item, index) => {
+              const msgId = lote[index]?.mensajeId;
+              let nuevoEstado = 'enviado';
+              let metaId = undefined;
+              
+              // n8n HTTP Request node with continueRegularOutput will have item.error
+              if (item?.error?.code === 131049 || item?.error?.message?.includes('131049') || JSON.stringify(item).includes('131049')) {
+                  errores131049 = true;
+                  saltados++;
+                  nuevoEstado = 'fallido'; // Meta rechazó por 131049
+              } else if (item?.error || item?.statusCode >= 400) {
+                  fallidos++;
+                  nuevoEstado = 'fallido';
+              } else {
+                  enviados++;
+                  // Extraer el wamid de la respuesta de Meta
+                  if (item?.messages && item.messages.length > 0) {
+                      metaId = item.messages[0].id;
+                  }
+              }
+              
+              if (msgId) {
+                  promesasActualizacion.push(
+                      Mensaje.findByIdAndUpdate(msgId, { 
+                          estado: nuevoEstado,
+                          ...(metaId && { metaMensajeId: metaId })
+                      }).then(() => {
+                          obtenerIO().emit('estado_mensaje', { mensajeId: msgId, estado: nuevoEstado });
+                      }).catch(() => {})
+                  );
+              }
+           });
+           
+           await Promise.all(promesasActualizacion);
+        } else {
+           enviados += lote.length; // Fallback
+        }
+
+        registrador.info(`Lote ${numeroLote}/${totalLotes} procesado. Enviados: ${enviados}, Fallidos: ${fallidos}, Saltados: ${saltados}`);
+        
+        if (errores131049) {
+           pausaEntreLotesMs = Math.min(pausaEntreLotesMs * 2, MAX_PAUSA_MS);
+           registrador.warn(`Detectado error 131049 (Frequency Capping). Aumentando pausa a ${pausaEntreLotesMs}ms`);
+        } else if (pausaEntreLotesMs > 5000) {
+           pausaEntreLotesMs = Math.max(pausaEntreLotesMs - 5000, 5000); // Reduce progressively if successful
+        }
+
       } catch (error) {
         fallidos += lote.length;
         registrador.error(`Lote ${numeroLote}/${totalLotes} falló: ${error.message}`);
       }
+      
+      // Update job progress
+      await BulkJob.findByIdAndUpdate(idTrabajo, { enviados, fallidos, saltados });
+      obtenerIO().emit('progreso_masivo', { idTrabajo, enviados, fallidos, saltados, total: contactosFormateados.length });
 
       // Pausa entre lotes para no saturar Meta API
       if (i + TAMANO_LOTE < contactosFormateados.length) {
-        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
+        await new Promise(resolve => setTimeout(resolve, pausaEntreLotesMs));
       }
     }
 
-    const estadoFinal = fallidos === 0 ? 'completado' : (enviados === 0 ? 'fallido' : 'completado');
-    await BulkJob.findByIdAndUpdate(idTrabajo, { estado: estadoFinal });
+    let estadoFinal = 'completado';
+    if (fallidos > 0 || saltados > 0) {
+      estadoFinal = (enviados === 0) ? 'fallido' : 'completado_parcial';
+    }
+    await BulkJob.findByIdAndUpdate(idTrabajo, { estado: estadoFinal, enviados, fallidos, saltados });
 
-    registrador.info(`Trabajo masivo ${trabajo._id} finalizado: ${enviados} enviados, ${fallidos} fallidos de ${contactosFormateados.length} total`);
+    registrador.info(`Trabajo masivo ${trabajo._id} finalizado: ${enviados} enviados, ${fallidos} fallidos, ${saltados} saltados de ${contactosFormateados.length} total`);
 
   } catch (error) {
     registrador.error(`Error procesando trabajo masivo: ${error.message}`);
