@@ -23,7 +23,8 @@ const esquemaContacto = new mongoose.Schema({
   grupos: [{ type: mongoose.Schema.ObjectId, ref: 'Grupo' }],
   vigente: { type: Boolean, default: false },
   capacitacion: { type: Boolean, default: false },
-  ultimoAutoEnvio: { type: Date }
+  ultimoAutoEnvio: { type: Date },
+  atendido: { type: Boolean, default: false }
 }, { timestamps: true });
 
 /**

@@ -1,6 +1,6 @@
 const express = require('express');
 const { proteger } = require('../middlewares/auth.middleware');
-const { obtenerContactos, crearContacto, obtenerContacto, actualizarContacto } = require('../controllers/contact.controller');
+const { obtenerContactos, crearContacto, obtenerContacto, actualizarContacto, marcarAtendido } = require('../controllers/contact.controller');
 
 const router = express.Router();
 
@@ -11,5 +11,6 @@ router.get('/', obtenerContactos);
 router.post('/', crearContacto);
 router.get('/:id', obtenerContacto);
 router.put('/:id', actualizarContacto);
+router.patch('/:id/atendido', marcarAtendido);
 
 module.exports = router;

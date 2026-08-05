@@ -202,6 +202,11 @@ exports.recibirMensaje = async (req, res, next) => {
         contacto.region = region;
         modificado = true;
       }
+      // Resetear atendido al recibir nuevo mensaje entrante
+      if (contacto.atendido) {
+        contacto.atendido = false;
+        modificado = true;
+      }
       if (modificado) {
         await contacto.save();
       }
@@ -401,4 +406,84 @@ exports.reintentarMensaje = async (req, res, next) => {
   }
 };
 
+// Reenvía un mensaje existente a uno o múltiples contactos
+exports.reenviarMensaje = async (req, res, next) => {
+  try {
+    const { mensajeId, contactosIds } = req.body;
+
+    if (!mensajeId || !contactosIds || !contactosIds.length) {
+      return res.status(400).json({ estado: 'error', mensaje: 'mensajeId y contactosIds son requeridos' });
+    }
+
+    const original = await Mensaje.findById(mensajeId).populate('contacto');
+    if (!original) {
+      return res.status(404).json({ estado: 'error', mensaje: 'Mensaje original no encontrado' });
+    }
+
+    const resultados = [];
+
+    for (const contactoId of contactosIds) {
+      const contacto = await Contacto.findById(contactoId);
+      if (!contacto) {
+        resultados.push({ contactoId, exito: false, razon: 'Contacto no encontrado' });
+        continue;
+      }
+
+      const nuevoMensaje = await Mensaje.create({
+        contacto: contactoId,
+        contenido: original.contenido,
+        tipo: original.tipo,
+        direccion: 'saliente',
+        estado: 'pendiente',
+        archivoUrl: original.archivoUrl || null,
+        mimeType: original.mimeType || null,
+        nombreArchivo: original.nombreArchivo || null,
+        remitenteUsuario: req.user ? req.user._id : undefined
+      });
+
+      try {
+        const mensajePoblado = await Mensaje.findById(nuevoMensaje._id)
+          .populate('contacto', 'nombre telefono region')
+          .populate('remitenteUsuario', 'correo rol nombre');
+        obtenerIO().emit('nuevo_mensaje', { mensaje: mensajePoblado });
+      } catch (e) {}
+
+      let telefonoFormateado = contacto.telefono || contacto.identificadorMeta;
+      if (telefonoFormateado && telefonoFormateado.startsWith('521')) {
+        telefonoFormateado = '52' + telefonoFormateado.substring(3);
+      }
+
+      const tipoN8n = (original.tipo === 'texto' || original.tipo === 'text' || !original.tipo) ? 'text' : original.tipo;
+
+      n8nService.enviarMensajeIndividual({
+        telefono: telefonoFormateado,
+        mensaje: original.contenido,
+        contenido: original.contenido,
+        tipo: tipoN8n,
+        mensajeId: nuevoMensaje._id,
+        mediaUrl: original.archivoUrl || null,
+        fileName: original.nombreArchivo || null
+      }).then(() => {
+        Mensaje.findByIdAndUpdate(nuevoMensaje._id, { estado: 'enviado' }, { returnDocument: 'after' }).exec()
+          .then((updated) => {
+            if (updated) {
+              try { obtenerIO().emit('estado_mensaje', { mensajeId: updated._id, estado: 'enviado' }); } catch (e) {}
+            }
+          }).catch(() => {});
+      }).catch(async (err) => {
+        console.error(`Error al reenviar mensaje a n8n para ${contacto.telefono}:`, err.message);
+        try {
+          const fallido = await Mensaje.findByIdAndUpdate(nuevoMensaje._id, { estado: 'fallido' }, { returnDocument: 'after' });
+          if (fallido) { obtenerIO().emit('estado_mensaje', { mensajeId: fallido._id, estado: 'fallido' }); }
+        } catch (dbErr) {}
+      });
+
+      resultados.push({ contactoId, exito: true, mensajeId: nuevoMensaje._id });
+    }
+
+    res.status(201).json({ estado: 'exito', datos: resultados });
+  } catch (error) {
+    next(error);
+  }
+};
 

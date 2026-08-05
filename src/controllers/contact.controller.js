@@ -1,4 +1,5 @@
 const Contacto = require('../models/Contact');
+const { obtenerIO } = require('../config/socket');
 
 /**
  * Controlador para obtener la lista de contactos del usuario autenticado.
@@ -33,7 +34,8 @@ exports.obtenerContactos = async (req, res, next) => {
               if: {
                 $and: [
                   { $ne: ['$ultimoMensaje', null] },
-                  { $eq: ['$ultimoMensaje.direccion', 'entrante'] }
+                  { $eq: ['$ultimoMensaje.direccion', 'entrante'] },
+                  { $ne: ['$atendido', true] }
                 ]
               },
               then: true,
@@ -131,6 +133,26 @@ exports.actualizarContacto = async (req, res, next) => {
 
     contacto = await contacto.populate('giro grupos');
     
+    res.status(200).json({ estado: 'exito', datos: contacto });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Marca un contacto como atendido, limpiando el badge Pendiente
+exports.marcarAtendido = async (req, res, next) => {
+  try {
+    const contacto = await Contacto.findByIdAndUpdate(
+      req.params.id,
+      { atendido: true },
+      { new: true }
+    );
+    if (!contacto) {
+      return res.status(404).json({ estado: 'error', mensaje: 'Contacto no encontrado' });
+    }
+    try {
+      obtenerIO().emit('contacto_atendido', { contactoId: contacto._id });
+    } catch (e) {}
     res.status(200).json({ estado: 'exito', datos: contacto });
   } catch (error) {
     next(error);
